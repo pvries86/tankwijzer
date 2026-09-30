@@ -8,7 +8,6 @@ number of litres from which the trip pays off.
 - Start from browser GPS, a typed address or coordinates, or a pin on the map. You can add an optional destination.
 - Fuels: Petrol 95 (E10), Petrol 98 (E5), Diesel (B7), LPG, mapped to each country's local names.
 - Enter consumption in L/100 km or km/L, litres to buy and optional running cost per km.
-- On phones the app asks for your GPS location on page load (HTTPS or localhost only); typing an address still works.
 - Round trip (start → station → start) or detour along a route (start → station → destination).
 - Results: net saving, extra km/minutes, break-even litres, recommendation with confidence, and a map with station
   tooltips.

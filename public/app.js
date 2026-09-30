@@ -358,32 +358,27 @@
     });
   }
 
-  // onLoad = started on page load (mobile): only report a denied permission, never overwrite a location chosen meanwhile.
-  function useGps(onLoad = false) {
-    if (!navigator.geolocation) return onLoad ? undefined : showError(t('Your browser does not support location access.', 'Je browser ondersteunt geen locatiebepaling.'));
-    const btn = $('gps');
-    btn.disabled = true;
-    btn.textContent = '📍 …';
-    const done = () => { btn.disabled = false; btn.textContent = '📍 GPS'; };
-    const ok = (pos) => {
-      done();
-      if (onLoad && (state.start || $('start-q').value.trim())) return;
-      $('start-q').value = '';
-      const acc = Math.round(pos.coords.accuracy);
-      const label = () => t(`Your location (±${acc} m)`, `Jouw locatie (±${acc} m)`);
-      setPoint('start', { lat: pos.coords.latitude, lon: pos.coords.longitude, label: label(), auto: label });
-    };
-    const fail = (err) => {
-      done();
-      if (onLoad && err.code !== 1) return;
-      showError(err.code === 1 ? t('Location permission denied. Allow location for this site, or type an address.', 'Geen toestemming voor locatie. Sta locatie toe voor deze site, of typ een adres.')
-        : t('Could not get your location. Type an address instead.', 'Kon je locatie niet bepalen. Typ in plaats daarvan een adres.'));
-    };
-    // Precise GPS first; if that times out or is unavailable, accept a coarser (network) position.
-    navigator.geolocation.getCurrentPosition(ok, (err) => {
-      if (err.code === 1) return fail(err);
-      navigator.geolocation.getCurrentPosition(ok, fail, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
-    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  function useGps() {
+    if (!navigator.geolocation) return showError(t('Your browser does not support location access.', 'Je browser ondersteunt geen locatiebepaling.'));
+    $('gps').disabled = true;
+    $('gps').textContent = '📍 …';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        $('gps').disabled = false;
+        $('gps').textContent = '📍 GPS';
+        $('start-q').value = '';
+        const acc = Math.round(pos.coords.accuracy);
+        const auto = () => t(`Your location (±${acc} m)`, `Jouw locatie (±${acc} m)`);
+        setPoint('start', { lat: pos.coords.latitude, lon: pos.coords.longitude, label: auto(), auto });
+      },
+      (err) => {
+        $('gps').disabled = false;
+        $('gps').textContent = '📍 GPS';
+        showError(err.code === 1 ? t('Location permission denied. Type an address instead.', 'Geen toestemming voor locatie. Typ in plaats daarvan een adres.')
+          : t('Could not get your location. Type an address instead.', 'Kon je locatie niet bepalen. Typ in plaats daarvan een adres.'));
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    );
   }
 
   function showError(err) {
@@ -809,7 +804,7 @@
 
   // ------------------------------------------------------------ wire up
   $('form').addEventListener('submit', submit);
-  $('gps').addEventListener('click', () => useGps());
+  $('gps').addEventListener('click', useGps);
   $('fuel').addEventListener('change', updateFuelHint);
   for (const b of document.querySelectorAll('#cons-toggle button')) b.addEventListener('click', () => setConsumptionUnit(b.dataset.unit));
   $('consumption').addEventListener('input', updateConsumptionHint);
@@ -840,15 +835,5 @@
   const isAddress = (t) => t && (t.id === 'start-q' || t.id === 'dest-q');
   $('form').addEventListener('input', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(e.target.tagName === 'SELECT' ? 0 : 700); });
   $('form').addEventListener('change', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(e.target.tagName === 'SELECT' ? 0 : 300); });
-  // On phones, use GPS by default (the browser still asks permission once; skipped if it was denied before).
-  const isMobile = window.matchMedia('(pointer: coarse)').matches && window.matchMedia('(max-width: 900px)').matches;
-  async function autoGps() {
-    if (!isMobile || !navigator.geolocation || !window.isSecureContext || state.start) return;
-    try {
-      const perm = navigator.permissions && await navigator.permissions.query({ name: 'geolocation' });
-      if (perm && perm.state === 'denied') return;
-    } catch { /* Permissions API unsupported: just try */ }
-    useGps(true);
-  }
-  init().then(autoGps).catch((err) => showError(t(`Could not load app configuration: ${err.message}`, `Kon de app-configuratie niet laden: ${err.message}`)));
+  init().catch((err) => showError(t(`Could not load app configuration: ${err.message}`, `Kon de app-configuratie niet laden: ${err.message}`)));
 })();
