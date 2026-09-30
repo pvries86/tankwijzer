@@ -833,6 +833,7 @@
   }
 
   // ------------------------------------------------------------ wire up
+  $('app-build').textContent = 'build 2026-09-30b';
   $('form').addEventListener('submit', submit);
   $('gps').addEventListener('click', useGps);
   $('fuel').addEventListener('change', updateFuelHint);

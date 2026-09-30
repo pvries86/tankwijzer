@@ -201,6 +201,7 @@ li.station { cursor: pointer; scroll-margin: 1rem; }
 
 .footer { padding: .75rem 1.25rem 1.25rem; font-size: .78rem; color: var(--muted); text-align: center; }
 .footer p { max-width: 900px; margin: 0 auto; }
+.footer .app-build { margin-top: .35rem; font-size: .7rem; opacity: .7; }
 
 /* price quality / confidence */
 .tag.estimate { background: #fff4e0; border-color: #e8c27a; color: #7a4d00; }
