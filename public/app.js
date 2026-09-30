@@ -375,8 +375,18 @@
     btn.disabled = true;
     btn.textContent = '📍 …';
     gpsMessage(t('Getting your location…', 'Locatie ophalen…'));
-    const done = () => { btn.disabled = false; btn.textContent = '📍 GPS'; };
+    let settled = false;
+    // Firefox-based browsers may never call back (e.g. dismissed prompt, no location provider).
+    const watchdog = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      btn.disabled = false; btn.textContent = '📍 GPS';
+      gpsMessage(t('Your browser did not return a location. Check its location permission for this site, try another browser, or type an address.',
+        'Je browser gaf geen locatie terug. Controleer de locatietoestemming voor deze site, probeer een andere browser of typ een adres.'));
+    }, 40000);
+    const done = () => { settled = true; clearTimeout(watchdog); btn.disabled = false; btn.textContent = '📍 GPS'; };
     const ok = (pos) => {
+      if (settled) return;
       done();
       $('start-q').value = '';
       const acc = Math.round(pos.coords.accuracy);
@@ -384,16 +394,18 @@
       setPoint('start', { lat: pos.coords.latitude, lon: pos.coords.longitude, label: label(), auto: label });
     };
     const fail = (err) => {
+      if (settled) return;
       done();
       const detail = err && err.message ? ` (${err.message})` : '';
       gpsMessage(err && err.code === 1
-        ? t(`Location permission denied${detail}. Allow location for this site in your browser, or type an address.`,
-          `Geen toestemming voor locatie${detail}. Sta locatie toe voor deze site in je browser, of typ een adres.`)
-        : t(`Could not get your location${detail}. Try again outside, or type an address.`,
-          `Kon je locatie niet bepalen${detail}. Probeer het opnieuw of typ een adres.`));
+        ? t(`Location permission denied${detail}. Allow location for this site in your browser, and for the browser app in your phone settings (precise location on), or type an address.`,
+          `Geen toestemming voor locatie${detail}. Sta locatie toe voor deze site in je browser én voor de browser-app in je telefooninstellingen (precieze locatie aan), of typ een adres.`)
+        : t(`Could not get your location${detail}. Check that your browser app has (precise) location permission in your phone settings, try again, or type an address.`,
+          `Kon je locatie niet bepalen${detail}. Controleer of je browser-app (precieze) locatietoestemming heeft in je telefooninstellingen, probeer opnieuw of typ een adres.`));
     };
     // Precise GPS first; on timeout/unavailable, fall back once to a coarser (network) position.
     navigator.geolocation.getCurrentPosition(ok, (err) => {
+      if (settled) return;
       if (err.code === 1) return fail(err);
       navigator.geolocation.getCurrentPosition(ok, fail, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
     }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
