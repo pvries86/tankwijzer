@@ -1,0 +1,4 @@
+﻿# pyfuelprices imports all of its sources at import time, so their dependencies are needed too
+pyfuelprices==2026.3.0
+aiohttp==3.14.3
+xmltodict==1.0.4

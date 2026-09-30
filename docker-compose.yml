@@ -1,0 +1,57 @@
+services:
+  fuel-detour:
+    # Local build by default. To use the published image instead, set in .env:
+    #   FUEL_DETOUR_IMAGE=ghcr.io/<github-user>/fuel-detour:latest
+    # and run: docker compose pull fuel-detour && docker compose up -d --no-build
+    build: .
+    image: ${FUEL_DETOUR_IMAGE:-fuel-detour:local}
+    container_name: fuel-detour
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    # Optional settings; copy .env.example to .env (requires Docker Compose >= 2.24 for "required: false").
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: "8080"
+      STATION_PRICE_FILE: prices/station-prices.json
+      ANWB_DATA_DIR: /app/data/anwb
+      CARBU_DATA_DIR: /app/data/carbu
+      DIRECTLEASE_URL: http://directlease:8090
+    volumes:
+      # Optional: put a station-prices.json in ./prices (see data/station-prices.example.json).
+      - ./prices:/app/prices:ro
+      # ANWB tile cache, request budget and the blocked.json marker survive restarts.
+      - anwb-data:/app/data/anwb
+      # CARBU.COM list/location cache, request budget and blocked.json survive restarts.
+      - carbu-data:/app/data/carbu
+
+  # OPTIONAL, not started by default: per-station prices from DirectLease Tankservice (App It Up BV)
+  # via pyfuelprices. Only with your OWN permission from App It Up, for one private installation:
+  #   set DIRECTLEASE_PRIVATE_USE_ACK=true in .env and run: docker compose --profile directlease up -d
+  directlease:
+    profiles: ["directlease"]
+    build: ./sidecar/directlease
+    image: fuel-detour-directlease:local
+    container_name: fuel-detour-directlease
+    restart: unless-stopped
+    # No published port: only the app container can reach it.
+    environment:
+      DIRECTLEASE_DATA_DIR: /data
+      DIRECTLEASE_CACHE_TTL_H: ${DIRECTLEASE_CACHE_TTL_H:-24}
+      DIRECTLEASE_DAILY_BUDGET: ${DIRECTLEASE_DAILY_BUDGET:-200}
+      DIRECTLEASE_MAX_FETCH_PER_REQUEST: ${DIRECTLEASE_MAX_FETCH_PER_REQUEST:-15}
+      DIRECTLEASE_MIN_INTERVAL_S: ${DIRECTLEASE_MIN_INTERVAL_S:-1.5}
+      LOG_LEVEL: ${DIRECTLEASE_LOG_LEVEL:-INFO}
+      # Without the ACK the sidecar makes no requests; DIRECTLEASE_PAUSED=true stops them temporarily.
+      DIRECTLEASE_PRIVATE_USE_ACK: ${DIRECTLEASE_PRIVATE_USE_ACK:-false}
+      DIRECTLEASE_PAUSED: ${DIRECTLEASE_PAUSED:-false}
+    volumes:
+      # Quote cache, request budget and the blocked.json marker survive restarts.
+      - directlease-data:/data
+
+volumes:
+  anwb-data:
+  carbu-data:
+  directlease-data:

@@ -1,0 +1,5 @@
+*
+!package.json
+!src/
+!public/
+!data/station-prices.example.json

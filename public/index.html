@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-en="Fuel Detour — is the cheaper pump worth the drive?">Fuel Detour — is de goedkopere pomp het omrijden waard?</title>
+  <meta name="description" content="Vergelijk wat tanken echt kost bij stations in de buurt — in Nederland, België, Duitsland en verder — inclusief de extra kilometers.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<!-- Static texts are Dutch (the default); English versions live in data-en / data-en-* attributes (see applyStaticTexts in app.js). -->
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">⛽</span>
+      <div>
+        <h1>Fuel Detour</h1>
+        <p class="tagline" data-en="Is the cheaper pump worth the extra drive?">Is de goedkopere pomp het omrijden waard?</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="unit-toggle lang-toggle" role="radiogroup" aria-label="Taal" data-en-aria-label="Language">
+        <button type="button" role="radio" data-lang="nl" aria-checked="true" title="Nederlands">NL</button>
+        <button type="button" role="radio" data-lang="en" aria-checked="false" title="English">EN</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel form-panel" aria-labelledby="form-title">
+      <h2 id="form-title" class="visually-hidden" data-en="Your trip">Je rit</h2>
+      <form id="form" novalidate>
+        <fieldset>
+          <legend data-en="Where are you?">Waar ben je?</legend>
+          <div class="row">
+            <input id="start-q" type="text" autocomplete="street-address" placeholder="Adres, plaats of “52.12, 5.19”" aria-label="Startlocatie"
+                   data-en-placeholder="Address, town or “51.44, 4.93”" data-en-aria-label="Start location">
+            <button type="button" id="gps" class="secondary" title="Gebruik mijn huidige locatie" data-en-title="Use my current location">📍 GPS</button>
+          </div>
+          <ul id="start-suggestions" class="suggestions" hidden></ul>
+          <p id="start-chosen" class="chosen muted">Nog geen locatie gekozen.</p>
+
+          <details id="dest-block">
+            <summary data-en="Driving somewhere anyway? Add a destination (optional)">Rij je toch al ergens heen? Voeg een bestemming toe (optioneel)</summary>
+            <div class="row">
+              <input id="dest-q" type="text" placeholder="Adres van bestemming" aria-label="Bestemming"
+                     data-en-placeholder="Destination address" data-en-aria-label="Destination">
+              <button type="button" id="dest-clear" class="secondary" data-en="Clear">Wissen</button>
+            </div>
+            <ul id="dest-suggestions" class="suggestions" hidden></ul>
+            <p id="dest-chosen" class="chosen muted">Geen bestemming — er wordt uitgegaan van heen en terug vanaf je start.</p>
+          </details>
+        </fieldset>
+
+        <fieldset>
+          <legend data-en="Your car">Je auto</legend>
+          <label for="fuel" data-en="Fuel">Brandstof</label>
+          <select id="fuel"></select>
+          <p id="fuel-local" class="hint"></p>
+          <div class="grid2">
+            <div>
+              <div class="label-row">
+                <label for="consumption" data-en="Consumption">Verbruik</label>
+                <div class="unit-toggle" id="cons-toggle" role="radiogroup" aria-label="Eenheid verbruik" data-en-aria-label="Consumption unit">
+                  <button type="button" role="radio" data-unit="l100" aria-checked="true">L/100 km</button>
+                  <button type="button" role="radio" data-unit="kml" aria-checked="false">km/L</button>
+                </div>
+              </div>
+              <input id="consumption" type="number" inputmode="decimal" min="0.1" max="50" step="0.1" required>
+              <p id="consumption-hint" class="hint" hidden></p>
+            </div>
+            <div>
+              <label for="litres" data-en='Litres to buy &lt;span class="unit"&gt;L&lt;/span&gt;'>Liters tanken <span class="unit">L</span></label>
+              <input id="litres" type="number" inputmode="decimal" min="1" max="200" step="1" required>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend data-en="Is a detour worth it to you?">Is omrijden het je waard?</legend>
+          <label for="priority" class="sr-only" data-en="Saving versus extra driving">Besparing tegenover extra rijden</label>
+          <select id="priority">
+            <option value="cheapest" data-en="Any saving counts, however far">Elke besparing telt, hoe ver ook</option>
+            <option value="balanced" data-en="Only if the extra driving is worth it">Alleen als het extra rijden het waard is</option>
+            <option value="hassle" data-en="Only for a clear win">Alleen bij een duidelijke winst</option>
+            <option value="custom" data-en="My own rule (see Advanced)">Mijn eigen regel (zie Geavanceerd)</option>
+          </select>
+          <p id="priority-hint" class="hint"></p>
+        </fieldset>
+
+        <details class="advanced" id="advanced">
+          <summary data-en="Advanced">Geavanceerd</summary>
+          <p class="adv-heading" data-en="Detour rule">Omrijregel</p>
+          <div class="grid2">
+            <div>
+              <label for="per10min" data-en='Every 10 extra min must save &lt;span class="unit"&gt;€&lt;/span&gt;'>Elke 10 extra min moet besparen <span class="unit">€</span></label>
+              <input id="per10min" type="number" inputmode="decimal" min="0" max="33" step="0.5">
+            </div>
+            <div>
+              <label for="minsaving" data-en='Ignore savings below &lt;span class="unit"&gt;€&lt;/span&gt;'>Negeer besparingen onder <span class="unit">€</span></label>
+              <input id="minsaving" type="number" inputmode="decimal" min="0" max="100" step="0.5">
+            </div>
+          </div>
+          <p class="hint" data-en="&lt;b&gt;Every 10 extra minutes must save&lt;/b&gt;: e.g. €2 means a station 30 min further away has to be at least €6 cheaper to beat the nearest one. 0 = only money counts. &lt;b&gt;Ignore savings below&lt;/b&gt;: smaller wins aren't worth the bother, so we say “use the nearest station”. Changing these switches the choice above to “My own rule”."><b>Elke 10 extra minuten moet besparen</b>: bijv. €2 betekent dat een station dat 30 min verder weg ligt minstens €6 goedkoper moet zijn dan het dichtstbijzijnde. 0 = alleen geld telt. <b>Negeer besparingen onder</b>: kleinere winst is de moeite niet, dan zeggen we “tank bij het dichtstbijzijnde station”. Als je deze aanpast, springt de keuze hierboven naar “Mijn eigen regel”.</p>
+          <p class="adv-heading" data-en="Search &amp;amp; costs">Zoeken &amp; kosten</p>
+          <div class="grid2">
+            <div>
+              <label for="radius" data-en='Search radius &lt;span class="unit"&gt;km&lt;/span&gt;'>Zoekstraal <span class="unit">km</span></label>
+              <input id="radius" type="number" min="1" max="50" step="1">
+            </div>
+            <div>
+              <label for="perkm" data-en='Other running cost &lt;span class="unit"&gt;€/km&lt;/span&gt;'>Overige rijkosten <span class="unit">€/km</span></label>
+              <input id="perkm" type="number" min="0" max="2" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+          <p class="hint" data-en="&lt;b&gt;Search radius&lt;/b&gt;: how far (straight line) from your start/route we look for stations. &lt;b&gt;Other running cost&lt;/b&gt;: wear, tyres, maintenance per extra km on top of the fuel you burn (e.g. €0.05–0.15/km; the Dutch tax-free mileage allowance of €0.23/km also covers depreciation). Leave empty to count fuel only."><b>Zoekstraal</b>: hoe ver (hemelsbreed) vanaf je start/route we naar stations zoeken. <b>Overige rijkosten</b>: slijtage, banden en onderhoud per extra km, bovenop de brandstof die je verbruikt (bijv. €0,05–0,15/km; de onbelaste kilometervergoeding van €0,23/km dekt ook afschrijving). Leeg laten = alleen brandstof meetellen.</p>
+          <label for="baseline-mode" data-en="Compare against">Vergelijk met</label>
+          <select id="baseline-mode">
+            <option value="nearest" data-en="The nearest station (default)">Het dichtstbijzijnde station (standaard)</option>
+            <option value="custom" data-en="A price I pay anyway, with no extra km">Een prijs die ik toch al betaal, zonder extra km</option>
+          </select>
+          <p class="hint" data-en="Savings are measured against this. &lt;b&gt;Nearest station&lt;/b&gt;: the station with the shortest detour. &lt;b&gt;A price I pay anyway&lt;/b&gt;: e.g. your usual station on your commute, which costs no extra driving.">Besparingen worden hiermee vergeleken. <b>Dichtstbijzijnde station</b>: het station met de kortste omweg. <b>Een prijs die ik toch al betaal</b>: bijv. je vaste station op je woon-werkroute, dat geen extra rijden kost.</p>
+          <div id="baseline-price-wrap" hidden>
+            <label for="baseline-price" data-en='Your reference price &lt;span class="unit"&gt;€/L&lt;/span&gt;'>Jouw vergelijkingsprijs <span class="unit">€/L</span></label>
+            <input id="baseline-price" type="number" min="0.3" max="5" step="0.001">
+          </div>
+          <p class="hint" data-en="&lt;b&gt;Manual prices&lt;/b&gt;: seen an actual pump price? Enter it for a country and it's used for that country's stations that have no station-specific price (instead of the NL/BE country estimate, or instead of skipping them elsewhere). Stations with their own quote keep it."><b>Handmatige prijzen</b>: een echte pompprijs gezien? Vul hem in voor een land; hij wordt gebruikt voor stations in dat land zonder eigen stationsprijs (in plaats van de landelijke NL/BE-schatting, of in plaats van ze elders over te slaan). Stations met een eigen prijs houden die.</p>
+          <div id="overrides" class="grid2"></div>
+          <p id="overrides-empty" class="hint" data-en="A price field appears here for each country found after your first comparison.">Na je eerste vergelijking verschijnt hier een prijsveld voor elk gevonden land.</p>
+        </details>
+
+        <button type="submit" id="submit" class="primary" data-en="Compare stations">Vergelijk stations</button>
+        <p id="form-error" class="error" role="alert" hidden></p>
+      </form>
+    </section>
+
+    <section class="panel results-panel" aria-live="polite">
+      <div id="map" class="map" role="region" aria-label="Kaart met stations. Klik op de kaart om een start- of bestemmingspin te plaatsen."
+           data-en-aria-label="Map of stations. Click the map to drop a start or destination pin."></div>
+      <p id="map-hint" class="map-hint muted" data-en="Tip: click the map to drop a start (A) or destination (B) pin; drag a pin to move it.">Tip: klik op de kaart voor een start- (A) of bestemmingspin (B); sleep een pin om hem te verplaatsen.</p>
+      <div id="empty" class="empty">
+        <h2 data-en="How it works">Zo werkt het</h2>
+        <ol>
+          <li data-en="Choose your location (GPS, address or a pin on the map), fuel and how much you'll buy.">Kies je locatie (GPS, adres of een pin op de kaart), brandstof en hoeveel je gaat tanken.</li>
+          <li data-en="We find the stations around you — or along your route — and route to each, across borders too.">We zoeken de stations om je heen — of langs je route — en berekenen de route naar elk station, ook over de grens.</li>
+          <li data-en="The cost of the extra kilometres (and, if you like, your time) is subtracted from the price difference.">De kosten van de extra kilometers (en desgewenst je tijd) worden van het prijsverschil afgetrokken.</li>
+        </ol>
+        <p class="muted" data-en="Station prices come from per-station sources where configured; otherwise openly published country figures are used and labelled as estimates. Every price shows its source and date.">Stationsprijzen komen van bronnen per station waar die zijn ingesteld; anders worden openbaar gepubliceerde landelijke cijfers gebruikt en als schatting gemarkeerd. Bij elke prijs staan bron en datum.</p>
+      </div>
+      <div id="loading" class="loading" hidden><span class="spinner" aria-hidden="true"></span> <span data-en="Finding stations and routes…">Stations en routes zoeken…</span></div>
+      <div id="updating" class="updating-badge" role="status" hidden><span class="spinner" aria-hidden="true"></span> <span data-en="Updating…">Bijwerken…</span></div>
+      <div id="results" hidden>
+        <div id="recommendation" class="recommendation"></div>
+        <div id="warnings"></div>
+        <p id="summary" class="summary"></p>
+        <h3 class="section-title"><span data-en="Stations">Stations</span> <span class="muted small" data-en="sorted by net saving">gesorteerd op nettobesparing</span></h3>
+        <ol id="station-list" class="station-list"></ol>
+        <details class="info">
+          <summary data-en="Assumptions &amp;amp; baseline">Aannames &amp; vergelijkingspunt</summary>
+          <ul id="assumptions"></ul>
+        </details>
+        <details class="info" id="sources-block" open>
+          <summary data-en="Data sources &amp;amp; freshness">Gegevensbronnen &amp; actualiteit</summary>
+          <div id="sources"></div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p data-en="Map and station locations © OpenStreetMap contributors (ODbL). Station prices as shown per station (e.g. ANWB Onderweg, CARBU.COM). Country estimates: NL CBS StatLine (CC BY 4.0), BE FOD Economie maximum prices. Always check the pump price — this tool gives an estimate, not advice.">Kaart en stationslocaties © OpenStreetMap-bijdragers (ODbL). Stationsprijzen zoals per station vermeld (bijv. ANWB Onderweg, CARBU.COM). Landelijke schattingen: NL CBS StatLine (CC BY 4.0), BE FOD Economie maximumprijzen. Controleer altijd de prijs aan de pomp — deze tool geeft een schatting, geen advies.</p>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>

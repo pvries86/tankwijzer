@@ -1,0 +1,25 @@
+# Local settings and secrets (use .env.example as the template)
+.env
+.env.*
+!.env.example
+
+# Runtime caches, request budgets and block markers (never publish scraped/cached price data)
+data/anwb/
+data/carbu/
+directlease-data/
+prices/*.json
+
+# Dependencies / tooling
+node_modules/
+.venv*/
+__pycache__/
+*.pyc
+.impeccable/
+
+# Logs and OS/editor files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
