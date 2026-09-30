@@ -358,27 +358,45 @@
     });
   }
 
+  // Shows GPS problems right under the button (the form error sits far below it on phones).
+  function gpsMessage(msg) {
+    const chosen = $('start-chosen');
+    chosen.textContent = msg;
+    chosen.classList.remove('ok');
+  }
+
   function useGps() {
-    if (!navigator.geolocation) return showError(t('Your browser does not support location access.', 'Je browser ondersteunt geen locatiebepaling.'));
-    $('gps').disabled = true;
-    $('gps').textContent = '📍 …';
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        $('gps').disabled = false;
-        $('gps').textContent = '📍 GPS';
-        $('start-q').value = '';
-        const acc = Math.round(pos.coords.accuracy);
-        const auto = () => t(`Your location (±${acc} m)`, `Jouw locatie (±${acc} m)`);
-        setPoint('start', { lat: pos.coords.latitude, lon: pos.coords.longitude, label: auto(), auto });
-      },
-      (err) => {
-        $('gps').disabled = false;
-        $('gps').textContent = '📍 GPS';
-        showError(err.code === 1 ? t('Location permission denied. Type an address instead.', 'Geen toestemming voor locatie. Typ in plaats daarvan een adres.')
-          : t('Could not get your location. Type an address instead.', 'Kon je locatie niet bepalen. Typ in plaats daarvan een adres.'));
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-    );
+    if (!window.isSecureContext) {
+      return gpsMessage(t('GPS only works over HTTPS (or on localhost). Open the app via https:// or type an address.',
+        'GPS werkt alleen via HTTPS (of op localhost). Open de app via https:// of typ een adres.'));
+    }
+    if (!navigator.geolocation) return gpsMessage(t('Your browser does not support location access.', 'Je browser ondersteunt geen locatiebepaling.'));
+    const btn = $('gps');
+    btn.disabled = true;
+    btn.textContent = '📍 …';
+    gpsMessage(t('Getting your location…', 'Locatie ophalen…'));
+    const done = () => { btn.disabled = false; btn.textContent = '📍 GPS'; };
+    const ok = (pos) => {
+      done();
+      $('start-q').value = '';
+      const acc = Math.round(pos.coords.accuracy);
+      const label = () => t(`Your location (±${acc} m)`, `Jouw locatie (±${acc} m)`);
+      setPoint('start', { lat: pos.coords.latitude, lon: pos.coords.longitude, label: label(), auto: label });
+    };
+    const fail = (err) => {
+      done();
+      const detail = err && err.message ? ` (${err.message})` : '';
+      gpsMessage(err && err.code === 1
+        ? t(`Location permission denied${detail}. Allow location for this site in your browser, or type an address.`,
+          `Geen toestemming voor locatie${detail}. Sta locatie toe voor deze site in je browser, of typ een adres.`)
+        : t(`Could not get your location${detail}. Try again outside, or type an address.`,
+          `Kon je locatie niet bepalen${detail}. Probeer het opnieuw of typ een adres.`));
+    };
+    // Precise GPS first; on timeout/unavailable, fall back once to a coarser (network) position.
+    navigator.geolocation.getCurrentPosition(ok, (err) => {
+      if (err.code === 1) return fail(err);
+      navigator.geolocation.getCurrentPosition(ok, fail, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
   }
 
   function showError(err) {
