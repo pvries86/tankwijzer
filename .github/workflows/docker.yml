@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/fuel-detour
+  IMAGE: ghcr.io/${{ github.repository_owner }}/tankwijzer
 
 jobs:
   test:

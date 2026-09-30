@@ -50,21 +50,26 @@ class TtlCache {
   }
 }
 
-/** Serialises calls so that at least `intervalMs` passes between them (e.g. Nominatim 1 req/s policy). */
+/**
+ * Spaces upstream calls so that at least `intervalMs` passes between them (e.g. Nominatim 1 req/s policy).
+ * By default a call also waits for the previous one to finish; with { overlap: true } only the start times are
+ * spaced, so a slow response does not delay the next request (used for search-as-you-type).
+ */
 class Throttle {
-  constructor(intervalMs) {
+  constructor(intervalMs, { overlap = false } = {}) {
     this.intervalMs = intervalMs;
+    this.overlap = overlap;
     this.chain = Promise.resolve();
     this.last = 0;
   }
   run(fn) {
-    const next = this.chain.then(async () => {
+    const started = this.chain.then(async () => {
       const wait = this.last + this.intervalMs - Date.now();
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       this.last = Date.now();
-      return fn();
     });
-    this.chain = next.catch(() => {});
+    const next = started.then(() => fn());
+    this.chain = (this.overlap ? started : next).catch(() => {});
     return next;
   }
 }

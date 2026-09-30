@@ -205,3 +205,60 @@ test('station price file: match by id or coordinates, reject stale entries', () 
   const missing = makeStationFileProvider({ stationPriceFile: file, stationPriceMaxAgeH: 48 });
   assert.equal(missing.stationPrice({ id: 'osm:node/1' }, 'e10'), null);
 });
+
+test('Throttle: default waits for the previous call; overlap only spaces start times', async () => {
+  const slow = (log, name) => () => new Promise((r) => { log.push(`start ${name}`); setTimeout(() => { log.push(`end ${name}`); r(name); }, 60); });
+  const serial = [];
+  const s = new Throttle(10);
+  await Promise.all([s.run(slow(serial, 'a')), s.run(slow(serial, 'b'))]);
+  assert.deepEqual(serial, ['start a', 'end a', 'start b', 'end b']);
+  const overlap = [];
+  const o = new Throttle(10, { overlap: true });
+  const t0 = Date.now();
+  const res = await Promise.all([o.run(slow(overlap, 'a')), o.run(slow(overlap, 'b'))]);
+  assert.deepEqual(res, ['a', 'b']);
+  assert.deepEqual(overlap.slice(0, 2), ['start a', 'start b']);
+  assert.ok(Date.now() - t0 < 110, 'second call must not wait for the first to finish');
+  await assert.rejects(o.run(() => Promise.reject(new Error('x'))), /x/);
+  assert.equal(await o.run(async () => 'still works'), 'still works');
+});
+
+const { makePdokGeocoder, makeVlaanderenGeocoder, makeOfficialGeocoders, parsePoint } = require('../src/providers/addressRegisters');
+
+test('PDOK geocoder: suggest query, bias, types, labels, cache', async () => {
+  const calls = [];
+  const http = { async json(url) {
+    calls.push(url);
+    return { response: { docs: [
+      { type: 'weg', weergavenaam: 'Stationsplein, Maastricht', centroide_ll: 'POINT(5.70510645 50.84961507)' },
+      { type: 'adres', weergavenaam: 'Broken', centroide_ll: 'nonsense' },
+    ] } };
+  } };
+  const g = makePdokGeocoder({ pdokUrl: 'https://pdok.test/v3_1' }, http, new TtlCache());
+  const r = await g.search('stationsplein maas', { near: { lat: 50.849, lon: 5.71 } });
+  assert.deepEqual(r, [{ label: 'Stationsplein, Maastricht, Netherlands', lat: 50.84961507, lon: 5.70510645, kind: 'weg' }]);
+  const u = new URL(calls[0]);
+  assert.equal(u.pathname, '/v3_1/suggest');
+  assert.equal(u.searchParams.get('lat'), '50.8');
+  assert.match(u.searchParams.get('fq'), /woonplaats OR weg OR postcode OR adres/);
+  await g.search('Stationsplein Maas', { near: { lat: 50.81, lon: 5.72 } });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(parsePoint('POINT(4.5 51.2)'), { lon: 4.5, lat: 51.2 });
+});
+
+test('Vlaanderen geocoder: labels, skips results without coordinates; registers follow GEOCODE_COUNTRIES', async () => {
+  const http = { async json(url) {
+    assert.match(url, /^https:\/\/vl\.test\/v4\/Location\?q=kerkstraat\+hoogs&c=5$/);
+    return { LocationResult: [
+      { FormattedAddress: 'Kerkstraat, Hoogstraten', Location: { Lat_WGS84: 51.474, Lon_WGS84: 4.7986 }, LocationType: 'basisregisters_straat' },
+      { FormattedAddress: 'No location' },
+    ] };
+  } };
+  const g = makeVlaanderenGeocoder({ vlaanderenGeoUrl: 'https://vl.test/v4' }, http, new TtlCache());
+  assert.deepEqual((await g.search('kerkstraat hoogs')).map((x) => x.label), ['Kerkstraat, Hoogstraten, Belgium']);
+  const ids = (cfg) => makeOfficialGeocoders(cfg, http, new TtlCache()).map((x) => x.id);
+  assert.deepEqual(ids({ officialGeocoders: 'pdok,vlaanderen', geocodeCountries: 'nl,be' }), ['pdok', 'vlaanderen']);
+  assert.deepEqual(ids({ officialGeocoders: 'pdok,vlaanderen', geocodeCountries: 'be,de' }), ['vlaanderen']);
+  assert.deepEqual(ids({ officialGeocoders: '', geocodeCountries: 'nl,be' }), []);
+  assert.deepEqual(ids({ officialGeocoders: 'bogus,pdok', geocodeCountries: '' }), ['pdok']);
+});

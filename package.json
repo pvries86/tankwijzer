@@ -1,5 +1,5 @@
 {
-  "name": "fuel-detour",
+  "name": "tankwijzer",
   "version": "0.1.0",
   "description": "Is the cheaper pump worth the drive? Compare refuelling costs at nearby stations (NL, BE, DE, …) including detour cost.",
   "private": true,

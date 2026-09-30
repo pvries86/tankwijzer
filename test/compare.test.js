@@ -202,7 +202,11 @@ test('API: config, geocode, static files and security headers', async () => {
     const g = await (await fetch(`${base}/api/geocode?q=51.1,4.2`)).json();
     assert.deepEqual(g.results[0], { label: '51.1, 4.2', lat: 51.1, lon: 4.2 });
     const g2 = await (await fetch(`${base}/api/geocode?q=Hoogstraten`)).json();
-    assert.equal(g2.results[0].label, 'Hoogstraten');
+    assert.equal(g2.results[0].label, 'Hoogstraten, Flanders, Belgium'); // offline GeoNames index first
+    assert.ok(g2.results.length >= 1 && g2.source !== 'GeoNames (CC BY 4.0)');
+    const fast = await (await fetch(`${base}/api/geocode?q=Hoogstr&fast=1`)).json();
+    assert.equal(fast.partial, true);
+    assert.equal(fast.results[0].label, 'Hoogstraten, Flanders, Belgium');
     const html = await fetch(`${base}/`);
     assert.equal(html.status, 200);
     assert.match(html.headers.get('content-security-policy'), /default-src 'self'/);
@@ -264,4 +268,20 @@ test('build label: CI value wins, local falls back to dev + file date', () => {
   const { version } = require('../package.json');
   assert.equal(buildLabel({ APP_BUILD: '2026-09-30 abc1234' }), `v${version} · 2026-09-30 abc1234`);
   assert.match(buildLabel({}), new RegExp(`^v${version.replace(/\./g, '\\.')} · dev( \\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2} UTC)?$`));
+});
+
+test('API geocode: official registers in fast and full mode; a failing register is ignored', async () => {
+  const deps = liveDeps();
+  deps.officialGeocoders = [
+    { id: 'pdok', async search() { return [{ label: 'Kerkstraat, Tegelen, Netherlands', lat: 51.34, lon: 6.14 }]; } },
+    { id: 'down', async search() { throw new Error('boom'); } },
+  ];
+  await withApp(deps, {}, async (base) => {
+    const fast = await (await fetch(`${base}/api/geocode?q=kerkstraat&fast=1`)).json();
+    assert.equal(fast.partial, true);
+    assert.ok(fast.results.some((r) => r.label === 'Kerkstraat, Tegelen, Netherlands'));
+    const full = await (await fetch(`${base}/api/geocode?q=kerkstraat`)).json();
+    assert.ok(full.results.some((r) => r.label === 'Kerkstraat, Tegelen, Netherlands'));
+    assert.ok(full.results.some((r) => r.label === 'kerkstraat'), 'photon/stub results still included');
+  });
 });

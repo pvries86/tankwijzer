@@ -3,3 +3,4 @@
 !src/
 !public/
 !data/station-prices.example.json
+!data/places.tsv

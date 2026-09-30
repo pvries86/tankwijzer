@@ -156,7 +156,7 @@ test('anwb client: honest UA, one request per tile, cached within TTL, refreshed
   const n = fetch.calls.length;
   assert.ok(n >= 1);
   assert.match(fetch.calls[0].url, /type-filter=FUEL_STATION&bounding-box-filter=51,4\.5,51\.5,5\.25$/);
-  assert.match(fetch.calls[0].opts.headers['User-Agent'], /^fuel-detour\/.*private self-hosted/);
+  assert.match(fetch.calls[0].opts.headers['User-Agent'], /^tankwijzer\/.*private self-hosted/);
   assert.equal(Object.keys(fetch.calls[0].opts.headers).length, 2, 'only UA + Accept, nothing spoofed');
   assert.ok(r1.stations.length >= 3);
   assert.equal(new Set(r1.stations.map((s) => s.id)).size, r1.stations.length, 'deduplicated across tiles');

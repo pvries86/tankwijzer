@@ -50,11 +50,19 @@ h1, h2, h3 { margin: 0; line-height: 1.2; }
 @media (max-width: 860px) { .layout { grid-template-columns: 1fr; padding: .75rem; } }
 
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
-.form-panel { padding: 1rem 1.1rem; position: sticky; top: 1rem; }
-@media (max-width: 860px) { .form-panel { position: static; } }
+.form-panel { padding: 1rem 1.1rem; scrollbar-width: none; }
+.form-panel::-webkit-scrollbar { display: none; }
 /* overflow: clip (not hidden) keeps the rounded corners without breaking the sticky map. */
 .results-panel { overflow: clip; --map-h: 320px; }
 @media (max-width: 860px) { .results-panel { --map-h: 220px; } }
+/* Desktop: fixed-height app shell; settings and results each scroll on their own (no scroll chaining through the page). */
+@media (min-width: 861px) and (min-height: 600px) {
+  body { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+  .layout { min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+  .form-panel, .results-panel { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .results-panel { scrollbar-width: thin; }
+  body > .footer { padding: .4rem 1.25rem .6rem; }
+}
 
 fieldset { border: 0; padding: 0; margin: 0 0 1.1rem; }
 legend { font-weight: 700; margin-bottom: .5rem; font-size: 1rem; }

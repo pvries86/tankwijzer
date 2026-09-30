@@ -12,6 +12,8 @@ const { makeCbsProvider, makeFodProvider, makeStationFileProvider, makeDirectLea
 const { makeAnwbClient, makeAnwbStationProvider, makeAnwbPriceProvider } = require('./providers/anwb');
 const { makeCarbuClient, makeCarbuPriceProvider } = require('./providers/carbu');
 const { makeOsrmRouter, makeHaversineRouter, makeNominatimGeocoder, makePhotonGeocoder, parseLatLon } = require('./providers/routing');
+const { makePlaceIndex, mergeResults } = require('./providers/places');
+const { makeOfficialGeocoders } = require('./providers/addressRegisters');
 const { makeCompareService, InputError } = require('./compare');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -71,10 +73,12 @@ function buildApp(config = loadConfig(), deps = {}) {
   const fallbackRouter = makeHaversineRouter(config);
   const router = deps.router || (config.routingProvider === 'osrm' ? makeOsrmRouter(config, client, cache) : fallbackRouter);
   const geocoder = deps.geocoder || (
-    config.geocoder === 'photon' ? makePhotonGeocoder(config, client, cache, new Throttle(400))
+    config.geocoder === 'photon' ? makePhotonGeocoder(config, client, cache, new Throttle(300, { overlap: true }))
       : config.geocoder === 'nominatim' ? makeNominatimGeocoder(config, client, cache, new Throttle(1100))
         : null);
-
+  const places = deps.places !== undefined ? deps.places : (config.localPlaces ? makePlaceIndex(config) : null);
+  const official = deps.officialGeocoders || (deps.geocoder !== undefined ? [] : makeOfficialGeocoders(config, client, cache));
+  if (places && !deps.places) setTimeout(() => { try { places.search('warm up'); } catch (err) { console.warn('place index unavailable:', err.message); } }, 0).unref();
   const compare = makeCompareService({
     config,
     stationProvider,
@@ -86,6 +90,7 @@ function buildApp(config = loadConfig(), deps = {}) {
   const limiter = new RateLimiter(config.rateLimitPerMin);
   // Search-as-you-type makes more (small, cached, upstream-throttled) requests than comparisons do.
   const geoLimiter = new RateLimiter(Math.max(60, config.rateLimitPerMin * 3));
+  const fastGeoLimiter = new RateLimiter(Math.max(150, config.rateLimitPerMin * 5)); // offline index + NL/Flanders registers
 
   function send(res, status, body, headers = {}) {
     const data = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
@@ -140,16 +145,29 @@ function buildApp(config = loadConfig(), deps = {}) {
     if (url.pathname === '/api/health') return send(res, 200, { ok: true });
     if (url.pathname === '/api/config') return send(res, 200, publicConfig());
     const isGeo = url.pathname === '/api/geocode';
-    if (!(isGeo ? geoLimiter : limiter).allow(ip)) return send(res, 429, { error: 'Too many requests, please wait a minute.' });
+    const lim = !isGeo ? limiter : url.searchParams.get('fast') === '1' ? fastGeoLimiter : geoLimiter;
+    if (!lim.allow(ip)) return send(res, 429, { error: 'Too many requests, please wait a minute.' });
 
     if (url.pathname === '/api/geocode' && req.method === 'GET') {
       const q = (url.searchParams.get('q') || '').trim().slice(0, 200);
       if (q.length < 2) return send(res, 400, { error: 'query too short' });
       const ll = parseLatLon(q);
       if (ll) return send(res, 200, { results: [{ label: `${ll.lat}, ${ll.lon}`, ...ll }], source: 'coordinates' });
-      if (!geocoder) return send(res, 501, { error: 'Address search is disabled on this server. Enter coordinates or use GPS.' });
+      if (!geocoder && !places && !official.length) return send(res, 501, { error: 'Address search is disabled on this server. Enter coordinates or use GPS.' });
       const near = { lat: Number(url.searchParams.get('lat')), lon: Number(url.searchParams.get('lon')) };
-      const results = await geocoder.search(q, { near });
+      const fast = url.searchParams.get('fast') === '1';
+      let local = [];
+      try { local = places ? places.search(q, { near }) : []; } catch (err) { console.warn('place index unavailable:', err.message); }
+      const settle = (p, id) => p.catch((err) => { console.warn(`geocoder ${id} failed: ${err.message}`); return []; });
+      const officialP = Promise.all(official.map((g) => settle(g.search(q, { near, timeoutMs: fast ? 2000 : undefined }), g.id)))
+        .then((lists) => lists.flat());
+      // fast=1: offline index + official NL/Flanders registers (~0.2 s). The client asks for the full result in parallel.
+      if (fast || !geocoder) {
+        const results = mergeResults([{ items: local, cap: 3 }, { items: await officialP }]);
+        return send(res, 200, { results, source: 'GeoNames / PDOK / Digitaal Vlaanderen', partial: !!geocoder });
+      }
+      const [reg, remote] = await Promise.all([officialP, geocoder.search(q, { near })]);
+      const results = mergeResults([{ items: local, cap: 3 }, { items: reg, cap: 4 }, { items: remote }]);
       return send(res, 200, { results, source: geocoder.attribution || geocoder.id });
     }
 
@@ -220,7 +238,7 @@ function buildApp(config = loadConfig(), deps = {}) {
 if (require.main === module) {
   const { server, config } = buildApp();
   server.listen(config.port, config.host, () => {
-    console.log(`fuel-detour listening on http://${config.host}:${config.port} (stations: ${config.stationProvider}; prices: ${config.priceProviders.join(', ')})`);
+    console.log(`tankwijzer listening on http://${config.host}:${config.port} (stations: ${config.stationProvider}; prices: ${config.priceProviders.join(', ')})`);
   });
   const shutdown = () => server.close(() => process.exit(0));
   process.on('SIGTERM', shutdown);

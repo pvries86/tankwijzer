@@ -1,11 +1,11 @@
 services:
-  fuel-detour:
+  tankwijzer:
     # Local build by default. To use the published image instead, set in .env:
-    #   FUEL_DETOUR_IMAGE=ghcr.io/<github-user>/fuel-detour:latest
-    # and run: docker compose pull fuel-detour && docker compose up -d --no-build
+    #   TANKWIJZER_IMAGE=ghcr.io/<github-user>/tankwijzer:latest
+    # and run: docker compose pull tankwijzer && docker compose up -d --no-build
     build: .
-    image: ${FUEL_DETOUR_IMAGE:-fuel-detour:local}
-    container_name: fuel-detour
+    image: ${TANKWIJZER_IMAGE:-tankwijzer:local}
+    container_name: tankwijzer
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-8080}:8080"
@@ -33,8 +33,8 @@ services:
   directlease:
     profiles: ["directlease"]
     build: ./sidecar/directlease
-    image: fuel-detour-directlease:local
-    container_name: fuel-detour-directlease
+    image: tankwijzer-directlease:local
+    container_name: tankwijzer-directlease
     restart: unless-stopped
     # No published port: only the app container can reach it.
     environment:

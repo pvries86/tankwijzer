@@ -5,8 +5,8 @@
   const state = { start: null, destination: null, config: null, map: null, layer: null };
 
   // ------------------------------------------------------------ language (Dutch default, English optional)
-  const LANG_KEY = 'fuel-detour:lang';
-  let lang = (() => { try { return localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'nl'; } catch { return 'nl'; } })();
+  const LANG_KEY = 'tankwijzer:lang';
+  let lang = (() => { try { return (localStorage.getItem(LANG_KEY) || localStorage.getItem('fuel-detour:lang')) === 'en' ? 'en' : 'nl'; } catch { return 'nl'; } })();
   const t = (en, nl) => (lang === 'nl' ? nl : en);
   const locale = () => (lang === 'nl' ? 'nl-NL' : 'en-GB');
   const num = (v, d) => Number(v).toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -139,10 +139,10 @@
   }
 
   // ------------------------------------------------------------ prefs
-  const PREF_KEY = 'fuel-detour:prefs';
-  const LEGACY_PREF_KEY = 'border-fuel:prefs';
+  const PREF_KEY = 'tankwijzer:prefs';
+  const LEGACY_PREF_KEYS = ['fuel-detour:prefs', 'border-fuel:prefs'];
   function loadPrefs() {
-    try { return JSON.parse(localStorage.getItem(PREF_KEY) || localStorage.getItem(LEGACY_PREF_KEY)) || {}; } catch { return {}; }
+    try { return JSON.parse([PREF_KEY, ...LEGACY_PREF_KEYS].map((k) => localStorage.getItem(k)).find(Boolean)) || {}; } catch { return {}; }
   }
   function savePrefs() {
     const p = { fuel: $('fuel').value, consumption: consumptionL100(), consUnit, litres: $('litres').value, radius: $('radius').value, perkm: $('perkm').value, priority: $('priority').value, per10min: $('per10min').value, minsaving: $('minsaving').value };
@@ -163,7 +163,6 @@
     $('radius').value = prefs.radius || cfg.defaults.radiusKm;
     $('perkm').value = prefs.perkm || '';
     setPriority(prefs.priority || 'cheapest', prefs);
-    updateFuelHint();
     if (cfg.build) $('app-build').textContent = cfg.build;
     initMap();
   }
@@ -182,7 +181,6 @@
     applyStaticTexts();
     if (!state.config) return;
     renderFuelOptions();
-    updateFuelHint();
     updateConsumptionHint();
     $('priority-hint').textContent = PRESETS()[$('priority').value].hint;
     for (const which of ['start', 'destination']) {
@@ -215,10 +213,6 @@
     $('priority-hint').textContent = p.hint;
   }
 
-  function updateFuelHint() {
-    const f = state.config.fuels.find((x) => x.id === $('fuel').value);
-    $('fuel-local').textContent = f ? `${t('At the pump', 'Aan de pomp')}: 🇳🇱 ${f.local.NL} · 🇧🇪 ${f.local.BE}${f.local.DE ? ` · 🇩🇪 ${f.local.DE}` : ''}` : '';
-  }
 
   function initMap() {
     if (!window.L) {
@@ -310,33 +304,40 @@
   }
 
   const geoSeq = {};
-  async function geocode(inputId, listId, which, autoPick = false) {
-    const q = $(inputId).value.trim();
-    const list = $(listId);
-    const seq = (geoSeq[inputId] = (geoSeq[inputId] || 0) + 1);
-    if (q.length < 2) { list.replaceChildren(); list.hidden = true; return null; }
+  const geoCache = new Map(); // query+area -> results, so backspacing / retyping is instant
+  const geoAbort = {};
+  const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  async function fetchGeocode(q, inputId, fast = false) {
     const params = new URLSearchParams({ q });
     const near = state.start || (state.map && { lat: state.map.getCenter().lat, lon: state.map.getCenter().lng });
-    if (near) { params.set('lat', near.lat); params.set('lon', near.lon); }
-    const res = await fetch(`/api/geocode?${params}`);
+    if (near) { params.set('lat', near.lat.toFixed(1)); params.set('lon', near.lon.toFixed(1)); }
+    if (fast) params.set('fast', '1');
+    const key = params.toString();
+    if (geoCache.has(key)) return geoCache.get(key);
+    const slot = inputId + (fast ? ':fast' : '');
+    if (geoAbort[slot]) geoAbort[slot].abort();
+    const ctrl = (geoAbort[slot] = new AbortController());
+    const res = await fetch(`/api/geocode?${params}`, { signal: ctrl.signal });
     const json = await res.json();
-    if (seq !== geoSeq[inputId] || $(inputId).value.trim() !== q) return null; // user kept typing
-    list.replaceChildren();
-    list.hidden = true;
     if (!res.ok) throw new Error(json.error || t('Address search failed', 'Adres zoeken mislukt'));
-    if (!json.results.length) {
-      if (autoPick) throw new Error(t(`No places found for “${q}” in the supported countries.`, `Geen plaatsen gevonden voor “${q}” in de ondersteunde landen.`));
-      list.append(el('li', { class: 'muted', text: t('No matches yet. Keep typing or check the spelling.', 'Nog geen resultaten. Typ verder of controleer de spelling.') }));
-      list.hidden = false;
-      return null;
+    if (geoCache.size > 300) geoCache.delete(geoCache.keys().next().value);
+    geoCache.set(key, json.results);
+    return json.results;
+  }
+  // While a search runs: keep earlier suggestions that still match the typed words and show a "searching" row.
+  function showSearching(list, q) {
+    const words = norm(q).split(/\s+/).filter(Boolean);
+    for (const li of [...list.children]) {
+      if (li.classList.contains('searching') || !li.querySelector('button') || !words.every((w) => norm(li.textContent).includes(w))) li.remove();
     }
-    if (json.results.length === 1 || autoPick) {
-      setPoint(which, json.results[0]);
-      return json.results[0];
-    }
+    list.prepend(el('li', { class: 'muted searching', text: t('Searching…', 'Zoeken…') }));
+    list.hidden = false;
+  }
+  function renderSuggestions(inputId, list, which, results, searching) {
+    list.replaceChildren();
     const counts = {};
-    for (const r of json.results) counts[r.label] = (counts[r.label] || 0) + 1;
-    for (const r of json.results) {
+    for (const r of results) counts[r.label] = (counts[r.label] || 0) + 1;
+    for (const r of results) {
       const text = counts[r.label] > 1 ? `${r.label} (${r.lat.toFixed(3)}, ${r.lon.toFixed(3)})` : r.label;
       const b = el('button', { type: 'button', text });
       b.addEventListener('click', () => {
@@ -346,16 +347,63 @@
       });
       list.append(el('li', null, b));
     }
-    list.hidden = false;
+    if (searching) list.append(el('li', { class: 'muted searching', text: t('Searching more results…', 'Meer resultaten zoeken…') }));
+    list.hidden = !list.children.length;
+  }
+  // Instant offline town/postcode suggestions; the full search (streets, addresses) replaces them when it arrives.
+  async function geocodeFast(inputId, listId, which) {
+    const q = $(inputId).value.trim();
+    const seq = geoSeq[inputId];
+    let results;
+    try { results = await fetchGeocode(q, inputId, true); } catch { return; }
+    if (seq !== geoSeq[inputId] || geoDone[inputId] === seq || $(inputId).value.trim() !== q || !results.length) return;
+    renderSuggestions(inputId, $(listId), which, results, true);
+  }
+  const geoDone = {};
+  async function geocode(inputId, listId, which, autoPick = false) {
+    const q = $(inputId).value.trim();
+    const list = $(listId);
+    const seq = autoPick ? (geoSeq[inputId] = (geoSeq[inputId] || 0) + 1) : geoSeq[inputId];
+    if (q.length < 2) { list.replaceChildren(); list.hidden = true; return null; }
+    let results;
+    try {
+      results = await fetchGeocode(q, inputId);
+    } catch (err) {
+      if (err.name === 'AbortError') return null;
+      if (seq === geoSeq[inputId]) { list.replaceChildren(); list.hidden = true; }
+      throw err;
+    }
+    if (seq !== geoSeq[inputId] || $(inputId).value.trim() !== q) return null; // user kept typing
+    geoDone[inputId] = seq;
+    list.replaceChildren();
+    list.hidden = true;
+    if (!results.length) {
+      if (autoPick) throw new Error(t(`No places found for “${q}” in the supported countries.`, `Geen plaatsen gevonden voor “${q}” in de ondersteunde landen.`));
+      list.append(el('li', { class: 'muted', text: t('No matches yet. Keep typing or check the spelling.', 'Nog geen resultaten. Typ verder of controleer de spelling.') }));
+      list.hidden = false;
+      return null;
+    }
+    if (results.length === 1 || autoPick) {
+      setPoint(which, results[0]);
+      return results[0];
+    }
+    renderSuggestions(inputId, list, which, results, false);
     return null;
   }
 
   function debounceGeocode(inputId, listId, which) {
     let timer;
+    let fastTimer;
     $(inputId).addEventListener('input', () => {
       setPoint(which, null);
       clearTimeout(timer);
-      timer = setTimeout(() => geocode(inputId, listId, which).catch(showError), 350);
+      clearTimeout(fastTimer);
+      geoSeq[inputId] = (geoSeq[inputId] || 0) + 1;
+      const q = $(inputId).value.trim();
+      if (q.length < 2) { $(listId).replaceChildren(); $(listId).hidden = true; return; }
+      showSearching($(listId), q);
+      fastTimer = setTimeout(() => geocodeFast(inputId, listId, which), 120);
+      timer = setTimeout(() => geocode(inputId, listId, which).catch(showError), 300);
     });
   }
 
@@ -836,7 +884,6 @@
   // ------------------------------------------------------------ wire up
   $('form').addEventListener('submit', submit);
   $('gps').addEventListener('click', useGps);
-  $('fuel').addEventListener('change', updateFuelHint);
   for (const b of document.querySelectorAll('#cons-toggle button')) b.addEventListener('click', () => setConsumptionUnit(b.dataset.unit));
   $('consumption').addEventListener('input', updateConsumptionHint);
   // Open navigation links via window.open: some embedded/in-app browsers ignore target=_blank anchors.

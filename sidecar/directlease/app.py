@@ -1,4 +1,4 @@
-"""HTTP sidecar exposing DirectLease station quotes (via pyfuelprices) to Fuel Detour.
+"""HTTP sidecar exposing DirectLease station quotes (via pyfuelprices) to Tankwijzer.
 
 Internal service: it binds to the Docker network only (no published port in docker-compose.yml).
 Endpoints:

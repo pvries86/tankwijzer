@@ -144,7 +144,7 @@ test('config: CARBU.COM off by default, before ANWB in the price order, >= 1 s b
   assert.equal(c.carbuAck, false);
   assert.deepEqual(c.priceProviders, ['station-file', 'carbu', 'anwb', 'directlease', 'cbs-nl', 'fod-be']);
   assert.ok(c.carbuMinIntervalMs >= 1000);
-  assert.match(c.carbuUserAgent, /fuel-detour.*private self-hosted.*CARBU\.COM/);
+  assert.match(c.carbuUserAgent, /tankwijzer.*private self-hosted.*CARBU\.COM/);
   assert.equal(loadConfig({ CARBU_PRIVATE_USE_ACK: 'true' }).carbuAck, true);
 });
 
@@ -171,7 +171,7 @@ test('carbu client: honest headers, one lookup + one list, cached within TTL, pe
   assert.match(f.calls[0].url, /^https:\/\/carbu\.com\/\/commonFunctions\/getlocation\/controller\.getlocation_JSON\.php\?location=2387&SHRT=1$/);
   assert.equal(f.calls[1].url, 'https://carbu.com/belgie//liste-stations-service/E10/Baarle-Hertog/2387/BE_a_377');
   const h = f.calls[1].opts.headers;
-  assert.match(h['User-Agent'], /fuel-detour.*private self-hosted/);
+  assert.match(h['User-Agent'], /tankwijzer.*private self-hosted/);
   assert.equal(h.Referer, 'https://carbu.com/');
   assert.deepEqual(Object.keys(h).sort(), ['Accept', 'Referer', 'User-Agent']);
   assert.ok(ctx.results[BE_ANCHOR.id]);

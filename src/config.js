@@ -21,7 +21,7 @@ function loadConfig(env = process.env) {
   return {
     port: num(env.PORT, 8080),
     host: env.HOST || '0.0.0.0',
-    userAgent: env.HTTP_USER_AGENT || `fuel-detour/0.2 (self-hosted${contact ? `; ${contact}` : ''})`,
+    userAgent: env.HTTP_USER_AGENT || `tankwijzer/0.2 (self-hosted${contact ? `; ${contact}` : ''})`,
     contactEmail: contact,
     httpTimeoutMs: num(env.HTTP_TIMEOUT_MS, 15000),
 
@@ -35,7 +35,7 @@ function loadConfig(env = process.env) {
     anwbPaused: bool(env.ANWB_PAUSED, false),
     anwbUrl: env.ANWB_URL || 'https://api.anwb.nl/routing/points-of-interest/v3/all',
     anwbUserAgent: env.ANWB_USER_AGENT ||
-      `fuel-detour/0.2 (private self-hosted instance, personal use; ANWB Onderweg fuel prices${contact ? `; ${contact}` : ''})`,
+      `tankwijzer/0.2 (private self-hosted instance, personal use; ANWB Onderweg fuel prices${contact ? `; ${contact}` : ''})`,
     anwbDataDir: env.ANWB_DATA_DIR || 'data/anwb',
     anwbCacheTtlH: num(env.ANWB_CACHE_TTL_H, 3),
     anwbStaleAfterH: num(env.ANWB_STALE_AFTER_H, 12),
@@ -54,7 +54,7 @@ function loadConfig(env = process.env) {
     carbuPaused: bool(env.CARBU_PAUSED, false),
     carbuBaseUrl: env.CARBU_BASE_URL || 'https://carbu.com',
     carbuUserAgent: env.CARBU_USER_AGENT ||
-      `fuel-detour/0.3 (private self-hosted instance, personal use with permission; CARBU.COM fuel prices${contact ? `; ${contact}` : ''})`,
+      `tankwijzer/0.3 (private self-hosted instance, personal use with permission; CARBU.COM fuel prices${contact ? `; ${contact}` : ''})`,
     carbuReferer: env.CARBU_REFERER === undefined ? 'https://carbu.com/' : env.CARBU_REFERER,
     carbuDataDir: env.CARBU_DATA_DIR || 'data/carbu',
     carbuCacheTtlH: num(env.CARBU_CACHE_TTL_H, 3),
@@ -103,6 +103,12 @@ function loadConfig(env = process.env) {
 
     geocoder: (env.GEOCODER || 'photon').toLowerCase(),
     photonUrl: (env.PHOTON_URL || 'https://photon.komoot.io').replace(/\/$/, ''),
+    // Offline GeoNames town/postcode index (data/places.tsv) for instant suggestions while Photon loads.
+    localPlaces: !['0', 'false', 'no', 'off'].includes(String(env.LOCAL_PLACES || 'true').toLowerCase()),
+    // Fast official address registers (open data, no key): pdok = Netherlands, vlaanderen = Flanders + Brussels.
+    officialGeocoders: env.OFFICIAL_GEOCODERS != null ? env.OFFICIAL_GEOCODERS : 'pdok,vlaanderen',
+    pdokUrl: (env.PDOK_URL || 'https://api.pdok.nl/bzk/locatieserver/search/v3_1').replace(/\/$/, ''),
+    vlaanderenGeoUrl: (env.VLAANDEREN_GEO_URL || 'https://geo.api.vlaanderen.be/geolocation/v4').replace(/\/$/, ''),
     nominatimUrl: (env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/$/, ''),
     // Default: the European countries ANWB Onderweg covers. Set e.g. GEOCODE_COUNTRIES=nl,be to narrow it.
     geocodeCountries: env.GEOCODE_COUNTRIES ||

@@ -1,4 +1,4 @@
-# Fuel Detour — is the cheaper pump worth the drive?
+# Tankwijzer — is the cheaper pump worth the drive?
 
 Self-hosted web app that tells you whether it pays to drive a bit further — to another town or across the border — to
 refuel. It finds stations around you (or along your route), routes to each one and compares
@@ -34,7 +34,7 @@ docker compose up -d --build
 ### Prebuilt image (GitHub Container Registry)
 
 `.github/workflows/docker.yml` runs the tests and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to
-`ghcr.io/<github-user>/fuel-detour`:
+`ghcr.io/<github-user>/tankwijzer`:
 
 - on every push to `main`, tagged `latest` and `sha-…`;
 - on version tags `vX.Y.Z`, tagged `X.Y.Z` and `X.Y`.
@@ -43,16 +43,16 @@ To run it:
 
 ```bash
 cp .env.example .env
-echo "FUEL_DETOUR_IMAGE=ghcr.io/<github-user>/fuel-detour:latest" >> .env
-docker compose pull fuel-detour && docker compose up -d --no-build
+echo "TANKWIJZER_IMAGE=ghcr.io/<github-user>/tankwijzer:latest" >> .env
+docker compose pull tankwijzer && docker compose up -d --no-build
 ```
 
 or without Compose:
 
 ```bash
-docker run -d --name fuel-detour -p 8080:8080 --env-file .env \
-  -v fuel-detour-anwb:/app/data/anwb -v fuel-detour-carbu:/app/data/carbu \
-  ghcr.io/<github-user>/fuel-detour:latest
+docker run -d --name tankwijzer -p 8080:8080 --env-file .env \
+  -v tankwijzer-anwb:/app/data/anwb -v tankwijzer-carbu:/app/data/carbu \
+  ghcr.io/<github-user>/tankwijzer:latest
 ```
 
 The image contains only code. It has no `.env` and no cached price data.
@@ -141,7 +141,10 @@ Estimates are never presented as station prices, and the recommendation's confid
 | BE estimate | [FOD Economie maximum prices](https://economie.fgov.be/nl/themas/energie/energieprijzen/maximumprijzen/officieel-tarief-van-de) | Legal maximum price. Stations often sell lower, so BE savings are conservative. |
 | Stations (fallback) | OpenStreetMap via Overpass | ODbL. Used when ANWB is off or unavailable. NL/BE only. |
 | Routing | [OSRM](https://project-osrm.org/) public demo | Falls back to straight line × `ROAD_FACTOR`, labelled as such. |
-| Geocoding | [Photon](https://photon.komoot.io/) (or Nominatim) | Search-as-you-type, throttled and cached. |
+| Geocoding | [Photon](https://photon.komoot.io/) (or Nominatim) | Search-as-you-type, cached. The public Photon takes about 3–5 s per query. |
+| Instant place suggestions | [GeoNames](https://www.geonames.org/) (`data/places.tsv`) | CC BY 4.0. Offline index of towns and NL/BE/LU 4-digit postcodes, answers in milliseconds while Photon loads streets/addresses. Rebuild with `python scripts/build_places.py`; turn off with `LOCAL_PLACES=false`. |
+| Fast streets/addresses NL | [PDOK Locatieserver](https://api.pdok.nl/bzk/locatieserver/search/v3_1/ui/) (Kadaster, BAG/NWB) | Open data (CC0), no key. ~0.1-0.3 s per query, biased towards your location. |
+| Fast streets/addresses Flanders + Brussels | [Digitaal Vlaanderen geolocation](https://geo.api.vlaanderen.be/geolocation/v4/Location) | Open service, no key. Wallonia, Germany and the rest still come from Photon (slow public server; self-host Photon via `PHOTON_URL` to fix). Turn off with `OFFICIAL_GEOCODERS=`. |
 | Map tiles | OpenStreetMap | [Tile usage policy](https://operations.osmfoundation.org/policies/tiles/) |
 
 **ANWB Onderweg, CARBU.COM and DirectLease data is not open data.** Only enable these providers if you have the
@@ -166,7 +169,7 @@ All settings are environment variables (see `.env.example`). Nothing secret is s
 |---|---|---|
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Listen address |
 | `CONTACT_EMAIL` | – | Added to outgoing User-Agents (recommended by OSM policies) |
-| `HTTP_USER_AGENT` | `fuel-detour/0.2 (self-hosted; <email>)` | Outgoing User-Agent for OSM services |
+| `HTTP_USER_AGENT` | `tankwijzer/0.2 (self-hosted; <email>)` | Outgoing User-Agent for OSM services |
 | `HTTP_TIMEOUT_MS` | `15000` | Outgoing request timeout |
 | `STATION_PROVIDER` | `anwb` | `anwb` (falls back to Overpass) or `overpass`; if both fail, the app shows an error |
 | `OVERPASS_URLS` | public mirrors | Comma-separated, tried in order |
@@ -202,7 +205,10 @@ All settings are environment variables (see `.env.example`). Nothing secret is s
 | `OSRM_URL` | public demo | Point to your own OSRM for heavier use |
 | `ROAD_FACTOR` | `1.3` | Straight-line → road multiplier for the fallback |
 | `GEOCODER` | `photon` | `photon`, `nominatim` (whole words only) or `none` |
-| `PHOTON_URL`, `NOMINATIM_URL`, `GEOCODE_COUNTRIES` | public instances, European countries | Geocoder |
+| `PHOTON_URL`, `NOMINATIM_URL`, `GEOCODE_COUNTRIES` | public instances, European countries | Geocoder. A self-hosted Photon (`PHOTON_URL`) makes street/address search fast too. |
+| `LOCAL_PLACES` | `true` | Instant offline town/postcode suggestions (GeoNames) |
+| `OFFICIAL_GEOCODERS` | `pdok,vlaanderen` | Fast official address registers (NL, Flanders/Brussels); empty disables; only used for countries in `GEOCODE_COUNTRIES` |
+| `PDOK_URL` / `VLAANDEREN_GEO_URL` | public endpoints | Override the register base URLs |
 | `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION` | OSM tiles | Map tiles |
 | `MIN_WORTHWHILE_SAVING_EUR` | `1.0` | Below this, recommend the nearest station |
 | `RATE_LIMIT_PER_MIN` | `30` | Per-IP limit for geocode/compare/prices |
