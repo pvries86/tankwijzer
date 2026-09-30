@@ -258,3 +258,10 @@ test('compare API: valuing time can turn a cash saving into "stay"', async () =>
     assert.ok(timed.assumptions.some((a) => /€2\.00 per 10 extra minutes/.test(a)));
   });
 });
+
+test('build label: CI value wins, local falls back to dev + file date', () => {
+  const { buildLabel } = require('../src/server');
+  const { version } = require('../package.json');
+  assert.equal(buildLabel({ APP_BUILD: '2026-09-30 abc1234' }), `v${version} · 2026-09-30 abc1234`);
+  assert.match(buildLabel({}), new RegExp(`^v${version.replace(/\./g, '\\.')} · dev( \\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2} UTC)?$`));
+});

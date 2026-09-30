@@ -7,6 +7,10 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
+# Build label shown in the page footer (CI passes date + commit).
+ARG APP_BUILD=""
+ENV APP_BUILD=$APP_BUILD
+
 # No npm dependencies: only package.json is needed for metadata.
 COPY package.json ./
 COPY src ./src

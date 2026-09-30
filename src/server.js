@@ -15,6 +15,18 @@ const { makeOsrmRouter, makeHaversineRouter, makeNominatimGeocoder, makePhotonGe
 const { makeCompareService, InputError } = require('./compare');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const { version: APP_VERSION } = require('../package.json');
+
+// Shown in the page footer so users can tell a stale cached page from the current release.
+// Docker/CI sets APP_BUILD (date + commit); local runs fall back to the newest public/ file date.
+function buildLabel(env = process.env) {
+  if (env.APP_BUILD) return `v${APP_VERSION} · ${env.APP_BUILD}`;
+  let newest = 0;
+  try {
+    for (const f of fs.readdirSync(PUBLIC_DIR)) newest = Math.max(newest, fs.statSync(path.join(PUBLIC_DIR, f)).mtimeMs);
+  } catch { /* ignore */ }
+  return newest ? `v${APP_VERSION} · dev ${new Date(newest).toISOString().slice(0, 16).replace('T', ' ')} UTC` : `v${APP_VERSION} · dev`;
+}
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -119,6 +131,7 @@ function buildApp(config = loadConfig(), deps = {}) {
       },
       map: { tileUrl: config.tileUrl, attribution: config.tileAttribution },
       minWorthwhileSaving: config.minWorthwhileSaving,
+      build: buildLabel(),
     };
   }
 
@@ -214,4 +227,4 @@ if (require.main === module) {
   process.on('SIGINT', shutdown);
 }
 
-module.exports = { buildApp };
+module.exports = { buildApp, buildLabel };

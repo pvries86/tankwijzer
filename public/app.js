@@ -164,6 +164,7 @@
     $('perkm').value = prefs.perkm || '';
     setPriority(prefs.priority || 'cheapest', prefs);
     updateFuelHint();
+    if (cfg.build) $('app-build').textContent = cfg.build;
     initMap();
   }
 
@@ -833,7 +834,6 @@
   }
 
   // ------------------------------------------------------------ wire up
-  $('app-build').textContent = 'build 2026-09-30b';
   $('form').addEventListener('submit', submit);
   $('gps').addEventListener('click', useGps);
   $('fuel').addEventListener('change', updateFuelHint);
