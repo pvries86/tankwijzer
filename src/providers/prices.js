@@ -12,9 +12,8 @@ const { tr } = require('../i18n');
  *   kind: 'station'          - price for this specific station (DirectLease quote or station-file report)
  *         'national-average' - CBS daily national average pump price (NL)
  *         'legal-maximum'    - FOD Economie official maximum price (BE); actual pump prices are often lower
- *         'user'             - entered by the user in the UI
- *   quality: live-quote | stale-quote | station-report | user | country-estimate
- *   estimate: true when the price is NOT specific to this station (country reference / user figure)
+ *   quality: live-quote | stale-quote | station-report | country-estimate
+ *   estimate: true when the price is NOT specific to this station (country reference)
  */
 
 function isoDate(d) {

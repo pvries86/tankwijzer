@@ -334,7 +334,7 @@ Put the app behind a TLS reverse proxy: browsers only allow GPS on HTTPS or `loc
 - `GET /api/geocode?q=` — address search (or `lat,lon`)
 - `GET /api/prices` — status of price providers
 - `GET /api/kenteken?k=` — RDW vehicle lookup (Dutch plates; 400 invalid, 404 not found, 429 rate limited, 501 disabled, 502 RDW unavailable)
-- `POST /api/compare` — `{ start:{lat,lon}, destination?, fuel, litres, consumption, perKmCost?, radiusKm?, overrides?, baseline?:{mode:'nearest'|'custom', price?}, lang? }`
+- `POST /api/compare` — `{ start:{lat,lon}, destination?, fuel, litres, consumption, perKmCost?, radiusKm?, baseline?:{mode:'nearest'|'custom', price?}, lang? }`
 
 ## Project layout
 

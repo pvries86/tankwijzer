@@ -636,7 +636,6 @@
       if (!state[which]) setPoint(which, null, { quiet: true });
       else if (state[which].auto) setPoint(which, { ...state[which], label: state[which].auto() }, { quiet: true });
     }
-    renderOverrides(state.lastData || {});
     // Server-written texts (recommendation, warnings, assumptions) come in the requested language: fetch again.
     if (state.lastData) runCompare({ auto: true, keepView: true });
   }
@@ -957,7 +956,6 @@
       perKmCost: $('perkm').value,
       timeValuePerHour: $('per10min').value === '' ? '' : Number($('per10min').value) * 6,
       minSaving: $('minsaving').value,
-      overrides: collectOverrides(),
       baseline: $('baseline-mode').value === 'custom' ? { mode: 'custom', price: $('baseline-price').value } : { mode: 'nearest' },
       lang,
     };
@@ -998,35 +996,6 @@
     return eq(a.start, b.start) && eq(a.destination, b.destination) && a.radiusKm === b.radiusKm;
   }
 
-  // Manual per-country prices: one field per country seen in results (plus any already filled in).
-  const overrideValues = {};
-  function collectOverrides() {
-    for (const inp of $('overrides').querySelectorAll('input[data-country]')) overrideValues[inp.dataset.country] = inp.value;
-    const out = {};
-    for (const [c, v] of Object.entries(overrideValues)) if (v !== '') out[c] = v;
-    return out;
-  }
-  function flagEmoji(c) {
-    return /^[A-Z]{2}$/.test(c) ? String.fromCodePoint(...[...c].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)) : '';
-  }
-  function renderOverrides(data) {
-    collectOverrides();
-    const seen = new Set([...(data.results || []).map((s) => s.country), ...(data.skippedCountries || []),
-      ...Object.keys(overrideValues).filter((c) => overrideValues[c] !== '')]);
-    const countries = [...seen].filter((c) => /^[A-Z]{2}$/.test(c)).sort();
-    const box = $('overrides');
-    const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.country : null;
-    box.replaceChildren(...countries.map((c) => {
-      const id = `ov-${c.toLowerCase()}`;
-      const inp = el('input', { id, type: 'number', min: '0.3', max: '5', step: '0.001', placeholder: t('no manual price', 'geen handmatige prijs') });
-      inp.dataset.country = c;
-      inp.value = overrideValues[c] || '';
-      return el('div', null, el('label', { for: id }, `${flagEmoji(c)} ${c} ${t('price', 'prijs')} `, el('span', { class: 'unit', text: '€/L' })), inp);
-    }));
-    $('overrides-empty').hidden = countries.length > 0;
-    if (focused) { const f = $(`ov-${focused.toLowerCase()}`); if (f) f.focus(); }
-  }
-
   // ------------------------------------------------------------ render
   function render(data, { keepView = false } = {}) {
     $('results').hidden = false;
@@ -1037,7 +1006,6 @@
     renderAssumptions(data);
     renderSources(data);
     renderMap(data, keepView);
-    renderOverrides(data);
   }
 
   function renderRecommendation(data) {
@@ -1218,8 +1186,8 @@
     }
     const st = data.sources.stations;
     box.append(el('p', { class: 'source-row' }, el('b', { text: 'Stations: ' }),
-      st.provider === 'anwb' ? t(`ANWB Onderweg (${st.endpoint}); oldest area retrieved ${fmtAge(st.fetchedAt)}. Stations outside NL/BE only appear with a station quote or a manual price.`,
-          `ANWB Onderweg (${st.endpoint}); oudste gebied opgehaald ${fmtAge(st.fetchedAt)}. Stations buiten NL/BE verschijnen alleen met een stationsprijs of een handmatige prijs.`)
+      st.provider === 'anwb' ? t(`ANWB Onderweg (${st.endpoint}); oldest area retrieved ${fmtAge(st.fetchedAt)}. Stations outside NL/BE only appear with a station quote.`,
+          `ANWB Onderweg (${st.endpoint}); oudste gebied opgehaald ${fmtAge(st.fetchedAt)}. Stations buiten NL/BE verschijnen alleen met een stationsprijs.`)
           : t(`OpenStreetMap via Overpass (${st.endpoint}); station list ${fmtAge(st.fetchedAt)}. © OpenStreetMap contributors, ODbL.`,
             `OpenStreetMap via Overpass (${st.endpoint}); stationslijst ${fmtAge(st.fetchedAt)}. © OpenStreetMap-bijdragers, ODbL.`)));
     if (data.sources.routing) {

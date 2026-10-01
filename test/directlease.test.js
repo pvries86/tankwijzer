@@ -229,14 +229,6 @@ test('compare+directlease: stale quote beyond max age is not used as station pri
   assert.match(be1.price.fallbackReason, /older than/);
 });
 
-test('compare+directlease: user override still beats country estimate but not a quote', async () => {
-  const d = await compareWith(() => ({ status: { ok: true }, results: { nl1: q(2.3) } }), { overrides: { NL: 1.9, BE: 1.8 } });
-  assert.equal(d.results.find((r) => r.id === 'nl1').price.quality, 'live-quote');
-  const be1 = d.results.find((r) => r.id === 'be1');
-  assert.equal(be1.price.kind, 'user');
-  assert.equal(be1.price.estimate, true);
-});
-
 test('directlease provider: not acknowledged -> no sidecar contact, no warning, no station quotes', async () => {
   const http = stubHttp(() => { throw new Error('must not be called'); });
   const p = makeDirectLeaseProvider({ ...cfg, directLeaseAck: false }, http);

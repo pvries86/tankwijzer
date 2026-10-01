@@ -47,24 +47,13 @@ function parseInput(body, config) {
   const minSaving = body.minSaving === undefined || body.minSaving === '' || body.minSaving === null ? (Number.isFinite(config.minWorthwhileSaving) ? config.minWorthwhileSaving : 1) : num(body.minSaving);
   if (!(minSaving >= 0 && minSaving <= 100)) throw new InputError('minimum saving must be between 0 and 100 EUR');
 
-  const overrides = {};
-  const ovIn = body.overrides && typeof body.overrides === 'object' ? body.overrides : {};
-  for (const [key, v] of Object.entries(ovIn).slice(0, 40)) {
-    const c = String(key).toUpperCase();
-    if (!/^[A-Z]{2,3}$/.test(c)) continue;
-    if (v !== undefined && v !== null && v !== '') {
-      const p = num(v);
-      if (!(p > 0.3 && p < 5)) throw new InputError(`price override for ${c} must be between 0.30 and 5.00 EUR/L`);
-      overrides[c] = p;
-    }
-  }
   let baseline = { mode: 'nearest' };
   if (body.baseline && body.baseline.mode === 'custom') {
     const p = num(body.baseline.price);
     if (!(p > 0.3 && p < 5)) throw new InputError('reference price must be between 0.30 and 5.00 EUR/L');
     baseline = { mode: 'custom', price: p, label: tr(lang)('Your reference price (no extra km)', 'Je eigen referentieprijs (zonder extra km)') };
   }
-  return { lang, start, destination, fuel, litres, consumption, perKmCost, timeValuePerHour, minSaving, radiusKm: radius, overrides, baseline };
+  return { lang, start, destination, fuel, litres, consumption, perKmCost, timeValuePerHour, minSaving, radiusKm: radius, baseline };
 }
 
 function navigationLinks(start, station, destination) {
@@ -163,15 +152,6 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
         if (typeof p.missReason === 'function') misses.push(p.missReason(s, fuel.id, ctxs[p.id], lang));
       }
       const fallbackReason = misses.filter(Boolean).join('; ') || null;
-      if (!price && input.overrides[s.country]) {
-        price = {
-          price: input.overrides[s.country], kind: 'user', quality: 'user', estimate: true, fallbackReason,
-          source: t('Price entered by you', 'Door jou ingevoerde prijs'), sourceUrl: null,
-          asOf: new Date().toISOString(), fetchedAt: null, live: false, provider: 'user',
-          note: t(`You entered this price for all ${s.country} stations without a station-specific price.`,
-            `Je hebt deze prijs ingevoerd voor alle ${s.country}-stations zonder eigen stationsprijs.`),
-        };
-      }
       // Country reference = explicit per-station ESTIMATE, never presented as this pump's price.
       if (!price && refs[s.country]) {
         price = { ...refs[s.country], quality: 'country-estimate', estimate: true, fallbackReason };
@@ -194,8 +174,8 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
       if (!s.price) unpriced[s.country] = (unpriced[s.country] || 0) + 1;
     }
     for (const [c, n] of Object.entries(unpriced)) {
-      warnings.push(t(`${n} ${c} station(s) skipped: no current station-specific ${fuel.label} price${refs[c] ? '' : ' and no country estimate'}. Enter a ${c} price under "Advanced → Manual prices" to include them.`,
-        `${n} ${c}-station(s) overgeslagen: geen actuele eigen prijs voor ${fuelName}${refs[c] ? '' : ' en geen landelijke schatting'}. Vul een ${c}-prijs in onder "Geavanceerd → Handmatige prijzen" om ze mee te nemen.`));
+      warnings.push(t(`${n} ${c} station(s) skipped: no current station-specific ${fuel.label} price${refs[c] ? '' : ' and no country estimate'}.`,
+        `${n} ${c}-station(s) overgeslagen: geen actuele eigen prijs voor ${fuelName}${refs[c] ? '' : ' en geen landelijke schatting'}.`));
     }
     const skippedCountries = Object.keys(unpriced);
 
@@ -312,7 +292,7 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
 
 const QUOTED = new Set(['live-quote', 'station-report']);
 
-// 'quote' = price for that pump (fresh), 'stale' = pump quote older than 24 h, 'estimate' = country/user figure
+// 'quote' = price for that pump (fresh), 'stale' = pump quote older than 24 h, 'estimate' = country figure
 function certainty(price) {
   if (!price) return 'estimate';
   if (QUOTED.has(price.quality)) return 'quote';
@@ -329,7 +309,6 @@ function estimateText(price, t) {
     return t('the Dutch national AVERAGE; this pump can be ±20 ct/L different, so the saving may be smaller, larger or absent',
       'het Nederlandse landelijk GEMIDDELDE; deze pomp kan ±20 ct/L afwijken, dus de besparing kan kleiner, groter of afwezig zijn');
   }
-  if (price.kind === 'user') return t('the price you entered for all stations in that country', 'de prijs die je voor alle stations in dat land hebt ingevoerd');
   return t('a country-level estimate', 'een landelijke schatting');
 }
 
@@ -349,8 +328,8 @@ function recommend(results, baseline, input, config, routes) {
       level: 'none',
       confidence: 'none',
       headline: t('No priced stations found', 'Geen stations met een prijs gevonden'),
-      detail: t('Try a larger search radius, another location, or enter prices manually under "Advanced".',
-        'Probeer een grotere zoekstraal, een andere locatie, of vul prijzen handmatig in onder "Geavanceerd".'),
+      detail: t('Try a larger search radius or another location.',
+        'Probeer een grotere zoekstraal of een andere locatie.'),
       caveats: [],
     };
   }
@@ -472,8 +451,8 @@ function assumptions(input, config, routes) {
   a.push(t('Tolls, parking, loyalty discounts and card fees are not included.', 'Tol, parkeren, spaarkortingen en pastransactiekosten zijn niet meegerekend.'));
   a.push(t(`Stations are the ${config.maxStationsPerCountry} closest per country within ${input.radiusKm} km (straight-line pre-selection); with ANWB, stations that list prices for other fuels but not this one are skipped.`,
     `Stations zijn de ${config.maxStationsPerCountry} dichtstbijzijnde per land binnen ${input.radiusKm} km (hemelsbrede voorselectie); bij ANWB worden stations overgeslagen die wel prijzen voor andere brandstoffen hebben, maar niet voor deze.`));
-  a.push(t('Prices: a station-specific quote where available (Belgium: CARBU.COM first, with the station\'s price date; otherwise ANWB Onderweg, retrieved at most ~24 h ago, price date not reported); otherwise a price you entered for that country; otherwise, for NL/BE only, a country ESTIMATE (NL: CBS national average, BE: FOD legal maximum), marked as such. Stations in other countries are only shown with a station quote or a price you entered.',
-    'Prijzen: een eigen stationsprijs waar beschikbaar (België: eerst CARBU.COM, met de prijsdatum van het station; anders ANWB Onderweg, hooguit ~24 u geleden opgehaald, prijsdatum niet gemeld); anders een prijs die je voor dat land hebt ingevoerd; anders, alleen voor NL/BE, een landelijke SCHATTING (NL: CBS landelijk gemiddelde, BE: FOD wettelijke maximumprijs), als zodanig gemarkeerd. Stations in andere landen worden alleen getoond met een stationsprijs of een door jou ingevoerde prijs.'));
+  a.push(t('Prices: a station-specific quote where available (Belgium: CARBU.COM first, with the station\'s price date; otherwise ANWB Onderweg, retrieved at most ~24 h ago, price date not reported); otherwise, for NL/BE only, a country ESTIMATE (NL: CBS national average, BE: FOD legal maximum), marked as such. Stations in other countries are only shown with a station quote.',
+    'Prijzen: een eigen stationsprijs waar beschikbaar (België: eerst CARBU.COM, met de prijsdatum van het station; anders ANWB Onderweg, hooguit ~24 u geleden opgehaald, prijsdatum niet gemeld); anders, alleen voor NL/BE, een landelijke SCHATTING (NL: CBS landelijk gemiddelde, BE: FOD wettelijke maximumprijs), als zodanig gemarkeerd. Stations in andere landen worden alleen getoond met een stationsprijs.'));
   if (routes) {
     a.push(routes.mode === 'road'
       ? t('Distances: shortest-time car route from the routing service.', 'Afstanden: snelste autoroute volgens de routeplanner.')

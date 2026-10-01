@@ -120,18 +120,17 @@ test('compare: small purchase -> stay recommendation', async () => {
   });
 });
 
-test('compare: user override replaces country reference; custom baseline', async () => {
+test('compare: custom baseline; manual price overrides are ignored', async () => {
   await withApp(liveDeps(), {}, async (base) => {
     const d = await (await post(base, {
       start: START, fuel: 'e10', litres: 40, consumption: 6,
       overrides: { NL: 1.5 }, baseline: { mode: 'custom', price: 2.5 },
     })).json();
-    // station-level price providers absent -> override applies before reference
     const nl = d.results.find((r) => r.id === 'nl1');
-    assert.equal(nl.price.kind, 'user');
-    assert.equal(nl.price.price, 1.5);
+    assert.notEqual(nl.price.kind, 'user');
+    assert.notEqual(nl.price.price, 1.5);
     assert.equal(d.baseline.id, '__baseline__');
-    assert.equal(d.results[0].id, 'nl1');
+    assert.ok(d.results.every((r) => r.price.kind !== 'user'));
   });
 });
 
@@ -158,20 +157,8 @@ test('compare: missing prices produce warning and no crash', async () => {
     const d = await (await post(base, { start: START, fuel: 'e10', litres: 40, consumption: 6 })).json();
     assert.equal(d.results.length, 0);
     assert.equal(d.recommendation.level, 'none');
-    assert.ok(d.warnings.some((w) => /station\(s\) skipped: no current station-specific .* price and no country estimate\. Enter a (NL|BE) price/.test(w)));
+    assert.ok(d.warnings.some((w) => /station\(s\) skipped: no current station-specific .* price and no country estimate/.test(w)));
     assert.deepEqual([...d.skippedCountries].sort(), ['BE', 'NL']);
-  });
-});
-
-test('compare: manual prices are accepted for any country code', async () => {
-  const deps = { ...liveDeps(), priceProviders: [] };
-  await withApp(deps, {}, async (base) => {
-    const d = await (await post(base, { start: START, fuel: 'e10', litres: 40, consumption: 6, overrides: { nl: 1.9, BE: 1.8, DE: 1.7, xx1: 2 } })).json();
-    assert.ok(d.results.length > 0);
-    assert.ok(d.results.every((s) => s.price.kind === 'user'));
-    assert.equal(d.skippedCountries.length, 0);
-    const bad = await post(base, { start: START, fuel: 'e10', litres: 40, consumption: 6, overrides: { FR: 9 } });
-    assert.equal(bad.status, 400);
   });
 });
 
@@ -182,7 +169,6 @@ test('API input validation returns 400', async () => {
       { start: START, fuel: 'e10', litres: 0, consumption: 6 },
       { start: START, fuel: 'kerosene', litres: 10, consumption: 6 },
       { start: { lat: 999, lon: 0 }, fuel: 'e10', litres: 10, consumption: 6 },
-      { start: START, fuel: 'e10', litres: 10, consumption: 6, overrides: { BE: 50 } },
       { start: START, destination: { lat: 40, lon: 4 }, fuel: 'e10', litres: 10, consumption: 6 },
     ]) {
       const res = await post(base, body);
