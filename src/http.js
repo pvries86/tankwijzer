@@ -42,4 +42,4 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-module.exports = { makeHttp, haversineKm, UpstreamError };
+module.exports = { makeHttp, haversineKm };

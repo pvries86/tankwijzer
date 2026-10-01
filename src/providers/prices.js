@@ -345,5 +345,4 @@ module.exports = {
   makeDirectLeaseProvider,
   directLeaseQuote,
   parseCbsRecords,
-  ageHours,
 };

@@ -19,4 +19,4 @@ function fmtNum(v, digits, lang) {
   return normLang(lang) === 'nl' ? s.replace('.', ',') : s;
 }
 
-module.exports = { LANGS, normLang, tr, fmtNum };
+module.exports = { normLang, tr, fmtNum };

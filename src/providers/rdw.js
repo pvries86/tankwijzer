@@ -248,6 +248,6 @@ function makeRdwClient(config, http, cache) {
 }
 
 module.exports = {
-  makeRdwClient, mapVehicle, mapRecalls, mapBody, mapBasisExtras, RdwError,
+  makeRdwClient, mapVehicle, mapRecalls, RdwError,
   BASIS_DATASET, FUEL_DATASET, RECALL_STATUS_DATASET, RECALL_DETAIL_DATASET, RECALL_RISK_DATASET, BODY_DATASET, AXLE_DATASET,
 };

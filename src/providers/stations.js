@@ -128,5 +128,4 @@ module.exports = {
   parseOverpassResponse,
   buildOverpassQuery,
   selectStations,
-  distanceToSegmentKm,
 };

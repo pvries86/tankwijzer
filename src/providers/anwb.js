@@ -537,5 +537,4 @@ module.exports = {
   countryOf,
   dataOriginOf,
   describeReason,
-  ANWB_FUEL_TYPES,
 };

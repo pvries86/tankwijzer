@@ -117,4 +117,4 @@ function parseFodMaxPricePdf(buffer) {
   return { validFrom, listNo, prices };
 }
 
-module.exports = { parseFodMaxPricePdf, extractPdfText, decodePdfString, groupRows };
+module.exports = { parseFodMaxPricePdf, decodePdfString };

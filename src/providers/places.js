@@ -150,4 +150,4 @@ function mergeResults(lists, max = 7) {
   return out.map(({ label, lat, lon }) => ({ label, lat, lon }));
 }
 
-module.exports = { makePlaceIndex, mergeResults, normPlace: norm };
+module.exports = { makePlaceIndex, mergeResults };

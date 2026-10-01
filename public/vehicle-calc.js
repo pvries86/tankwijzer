@@ -177,7 +177,7 @@
 
   return {
     normalizeKenteken, formatKenteken, isValidKenteken, maskKenteken, estimateFromCo2, estimateTank, estimateTankFromRange, targetRangeKm, rangeKm,
-    applyUplift, litresToBuy, resolveConsumption, resolveLitres, vehicleAttention, CO2_FACTORS,
+    applyUplift, litresToBuy, resolveConsumption, resolveLitres, vehicleAttention,
     todayAmsterdam, apkStatus, driveFromAxles,
   };
 }));
