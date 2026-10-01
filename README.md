@@ -346,7 +346,9 @@ src/providers/          ANWB, CARBU.COM, stations (Overpass), prices (CBS, FOD, 
 sidecar/directlease/    optional Python pyfuelprices sidecar
 src/server.js           HTTP server, static files, security headers, rate limiting
 public/                 UI (vanilla JS + Leaflet)
-data/                   example station price file
+data/                   example station price file, offline place index (places.tsv), runtime caches
+prices/                 optional place for your own station-prices.json
+scripts/                build_places.py: rebuilds data/places.tsv from GeoNames (CC BY 4.0)
 test/                   node:test suites
 .github/workflows/      CI: tests + multi-arch image to ghcr.io
 ```
