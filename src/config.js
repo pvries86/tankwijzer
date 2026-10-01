@@ -120,6 +120,13 @@ function loadConfig(env = process.env) {
 
     minWorthwhileSaving: num(env.MIN_WORTHWHILE_SAVING_EUR, 1.0),
     rateLimitPerMin: num(env.RATE_LIMIT_PER_MIN, 30),
+
+    // Optional Dutch licence-plate lookup via RDW Open Data (CC0). KENTEKEN_LOOKUP=false hides it.
+    kentekenLookup: !['0', 'false', 'no', 'off'].includes(String(env.KENTEKEN_LOOKUP || 'true').toLowerCase()),
+    rdwUrl: (env.RDW_URL || 'https://opendata.rdw.nl').replace(/\/$/, ''),
+    rdwAppToken: env.RDW_APP_TOKEN || '', // Socrata app token; server-side only
+    // Default realism uplift on RDW lab (WLTP/NEDC) consumption figures, in percent. Editable in the UI.
+    vehicleRealismUpliftPct: num(env.VEHICLE_REALISM_UPLIFT_PCT, 15),
   };
 }
 

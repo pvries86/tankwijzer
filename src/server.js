@@ -15,6 +15,7 @@ const { makeOsrmRouter, makeHaversineRouter, makeNominatimGeocoder, makePhotonGe
 const { makePlaceIndex, mergeResults } = require('./providers/places');
 const { makeOfficialGeocoders } = require('./providers/addressRegisters');
 const { makeCompareService, InputError } = require('./compare');
+const { makeRdwClient, RdwError } = require('./providers/rdw');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const { version: APP_VERSION } = require('../package.json');
@@ -91,6 +92,8 @@ function buildApp(config = loadConfig(), deps = {}) {
   // Search-as-you-type makes more (small, cached, upstream-throttled) requests than comparisons do.
   const geoLimiter = new RateLimiter(Math.max(60, config.rateLimitPerMin * 3));
   const fastGeoLimiter = new RateLimiter(Math.max(150, config.rateLimitPerMin * 5)); // offline index + NL/Flanders registers
+  const kentekenLimiter = new RateLimiter(20);
+  const rdw = config.kentekenLookup ? (deps.rdw || makeRdwClient(config, client, cache)) : null;
 
   function send(res, status, body, headers = {}) {
     const data = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
@@ -136,6 +139,7 @@ function buildApp(config = loadConfig(), deps = {}) {
       },
       map: { tileUrl: config.tileUrl, attribution: config.tileAttribution },
       minWorthwhileSaving: config.minWorthwhileSaving,
+      vehicle: { kentekenLookup: !!rdw, realismUpliftPct: config.vehicleRealismUpliftPct },
       build: buildLabel(),
     };
   }
@@ -145,8 +149,21 @@ function buildApp(config = loadConfig(), deps = {}) {
     if (url.pathname === '/api/health') return send(res, 200, { ok: true });
     if (url.pathname === '/api/config') return send(res, 200, publicConfig());
     const isGeo = url.pathname === '/api/geocode';
-    const lim = !isGeo ? limiter : url.searchParams.get('fast') === '1' ? fastGeoLimiter : geoLimiter;
-    if (!lim.allow(ip)) return send(res, 429, { error: 'Too many requests, please wait a minute.' });
+    const isKenteken = url.pathname === '/api/kenteken';
+    const lim = isKenteken ? kentekenLimiter : !isGeo ? limiter : url.searchParams.get('fast') === '1' ? fastGeoLimiter : geoLimiter;
+    if (!lim.allow(ip)) {
+      return send(res, 429, { error: 'Too many requests, please wait a minute.', ...(isKenteken ? { code: 'rate-limited' } : {}) });
+    }
+
+    if (isKenteken && req.method === 'GET') {
+      if (!rdw) return send(res, 501, { error: 'Licence-plate lookup is disabled on this server.', code: 'disabled' });
+      try {
+        return send(res, 200, { vehicle: await rdw.lookup(url.searchParams.get('k') || '') });
+      } catch (err) {
+        if (err instanceof RdwError) return send(res, err.status, { error: err.message, code: err.code });
+        throw err;
+      }
+    }
 
     if (url.pathname === '/api/geocode' && req.method === 'GET') {
       const q = (url.searchParams.get('q') || '').trim().slice(0, 200);

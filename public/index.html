@@ -56,7 +56,37 @@
 
         <fieldset>
           <legend data-en="Your car">Je auto</legend>
-          <label for="fuel" data-en="Fuel">Brandstof</label>
+          <div id="kenteken-wrap" hidden>
+            <label for="kenteken" data-en='Licence plate &lt;span class="unit"&gt;optional, Dutch plates only&lt;/span&gt;'>Kenteken <span class="unit">optioneel, alleen Nederlandse kentekens</span></label>
+            <div class="row plate-row">
+              <div class="nl-plate">
+                <span class="nl-plate-eu" aria-hidden="true">
+                  <svg viewBox="-12 -12 24 24" width="18" height="18" focusable="false"><g fill="#ffd200"><circle cx="0" cy="-9" r="1.3"/><circle cx="4.5" cy="-7.79" r="1.3"/><circle cx="7.79" cy="-4.5" r="1.3"/><circle cx="9" cy="0" r="1.3"/><circle cx="7.79" cy="4.5" r="1.3"/><circle cx="4.5" cy="7.79" r="1.3"/><circle cx="0" cy="9" r="1.3"/><circle cx="-4.5" cy="7.79" r="1.3"/><circle cx="-7.79" cy="4.5" r="1.3"/><circle cx="-9" cy="0" r="1.3"/><circle cx="-7.79" cy="-4.5" r="1.3"/><circle cx="-4.5" cy="-7.79" r="1.3"/></g></svg>
+                  <span>NL</span>
+                </span>
+                <input id="kenteken" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="10" placeholder="XX-999-X" class="kenteken-input"
+                       aria-label="Nederlands kenteken" data-en-aria-label="Dutch licence plate">
+              </div>
+              <button type="button" id="kenteken-lookup" class="secondary" data-en="Look up">Opzoeken</button>
+            </div>
+            <p class="hint" data-en="Fills in fuel, consumption and tank from RDW — or fill in yourself.">Vult brandstof, verbruik en tank in via RDW — of vul zelf in.</p>
+            <p id="kenteken-error" class="error" role="alert" hidden></p>
+          </div>
+          <div id="vehicle-summary" class="vehicle-summary">
+            <div class="vehicle-summary-text">
+              <strong id="vehicle-summary-title"></strong>
+              <span id="vehicle-summary-line" class="vehicle-summary-line"></span>
+              <span id="vehicle-badges" class="veh-badges"></span>
+            </div>
+            <button type="button" id="vehicle-toggle" class="secondary" aria-expanded="false" aria-controls="vehicle-details"></button>
+          </div>
+          <p id="vehicle-reason" class="warning small" role="status" hidden></p>
+          <div id="vehicle-details" class="vehicle-details" hidden>
+          <div id="vehicle-card" class="vehicle-card" hidden></div>
+          <div class="label-row">
+            <label for="fuel" data-en="Fuel">Brandstof</label>
+            <span id="fuel-origin" class="origin" hidden></span>
+          </div>
           <select id="fuel"></select>
           <div class="grid2">
             <div>
@@ -68,13 +98,56 @@
                 </div>
               </div>
               <input id="consumption" type="number" inputmode="decimal" min="0.1" max="50" step="0.1" required>
-              <p id="consumption-hint" class="hint" hidden></p>
+              <div class="hint-stack">
+                <span id="consumption-origin" class="origin" hidden></span>
+              </div>
             </div>
             <div>
-              <label for="litres" data-en='Litres to buy &lt;span class="unit"&gt;L&lt;/span&gt;'>Liters tanken <span class="unit">L</span></label>
+              <div class="label-row">
+                <label for="litres" data-en='Litres to buy &lt;span class="unit"&gt;L&lt;/span&gt;'>Liters tanken <span class="unit">L</span></label>
+              </div>
               <input id="litres" type="number" inputmode="decimal" min="1" max="200" step="1" required>
+              <div class="hint-stack">
+                <span id="litres-origin" class="origin" hidden></span>
+              </div>
             </div>
           </div>
+          <div id="uplift-wrap" class="uplift" hidden>
+            <div class="check uplift-row">
+              <input id="uplift" type="checkbox" checked>
+              <label for="uplift" data-en="Realistic consumption">Realistisch verbruik</label>
+              <span class="uplift-pct-wrap">+<input id="uplift-pct" type="number" inputmode="decimal" min="0" max="60" step="1" aria-label="Opslag op labwaarde in procent" data-en-aria-label="Uplift on lab figure in percent">%</span>
+              <span class="info-tip" tabindex="0" role="note" aria-label="Labwaarden (WLTP/NEDC) liggen meestal lager dan het verbruik in de praktijk." data-en-aria-label="Lab figures (WLTP/NEDC) are usually lower than real-world consumption."
+                    title="Labwaarden (WLTP/NEDC) liggen meestal lager dan het verbruik in de praktijk." data-en-title="Lab figures (WLTP/NEDC) are usually lower than real-world consumption.">ⓘ</span>
+            </div>
+            <p id="uplift-hint" class="hint one-line"></p>
+          </div>
+          <div class="grid2 tank-grid">
+            <div>
+              <div class="label-row">
+                <label for="tank" data-en='Tank size &lt;span class="unit"&gt;L&lt;/span&gt;'>Tankinhoud <span class="unit">L</span></label>
+              </div>
+              <input id="tank" type="number" inputmode="decimal" min="10" max="200" step="1" placeholder="bijv. 45" data-en-placeholder="e.g. 45">
+              <div class="hint-stack">
+                <span id="tank-origin" class="origin" hidden></span>
+              </div>
+            </div>
+            <div>
+              <div class="label-row">
+                <label for="level" data-en="Fuel left in tank:">Nog in tank:</label>
+                <output id="level-out" for="level" class="level-out">25%</output>
+              </div>
+              <input id="level" type="range" min="0" max="90" step="5" value="25" aria-describedby="level-hint">
+              <div class="hint-stack">
+                <p id="level-hint" class="hint one-line" data-en="Enter your tank size first." hidden>Vul eerst je tankinhoud in.</p>
+              </div>
+            </div>
+          </div>
+          </div>
+          <label id="remember-wrap" class="check remember" hidden>
+            <input id="remember-car" type="checkbox">
+            <span><span data-en="Remember my car on this device">Onthoud mijn auto op dit apparaat</span> <small class="muted" data-en="(plate stays in this browser only)">(kenteken blijft alleen in deze browser)</small></span>
+          </label>
         </fieldset>
 
         <fieldset>
@@ -169,12 +242,16 @@
   </main>
 
   <footer class="footer">
-    <p data-en="Map and station locations © OpenStreetMap contributors (ODbL). Place search: Photon (OSM), GeoNames (CC BY 4.0), PDOK/Kadaster (CC0) and Digitaal Vlaanderen. Station prices as shown per station (e.g. ANWB Onderweg, CARBU.COM). Country estimates: NL CBS StatLine (CC BY 4.0), BE FOD Economie maximum prices. Always check the pump price — this tool gives an estimate, not advice.">Kaart en stationslocaties © OpenStreetMap-bijdragers (ODbL). Plaatsen zoeken: Photon (OSM), GeoNames (CC BY 4.0), PDOK/Kadaster (CC0) en Digitaal Vlaanderen. Stationsprijzen zoals per station vermeld (bijv. ANWB Onderweg, CARBU.COM). Landelijke schattingen: NL CBS StatLine (CC BY 4.0), BE FOD Economie maximumprijzen. Controleer altijd de prijs aan de pomp — deze tool geeft een schatting, geen advies.</p>
+    <details class="footer-sources">
+      <summary><span data-en="Estimate, not advice · Map © OpenStreetMap">Schatting, geen advies · Kaart © OpenStreetMap</span> · <span class="footer-link" data-en="Sources &amp;amp; terms">Bronnen &amp; voorwaarden</span></summary>
+    <p data-en="Map and station locations © OpenStreetMap contributors (ODbL). Place search: Photon (OSM), GeoNames (CC BY 4.0), PDOK/Kadaster (CC0) and Digitaal Vlaanderen. Station prices as shown per station (e.g. ANWB Onderweg, CARBU.COM). Country estimates: NL CBS StatLine (CC BY 4.0), BE FOD Economie maximum prices. Vehicle data: RDW Open Data (CC0). Always check the pump price — this tool gives an estimate, not advice.">Kaart en stationslocaties © OpenStreetMap-bijdragers (ODbL). Plaatsen zoeken: Photon (OSM), GeoNames (CC BY 4.0), PDOK/Kadaster (CC0) en Digitaal Vlaanderen. Stationsprijzen zoals per station vermeld (bijv. ANWB Onderweg, CARBU.COM). Landelijke schattingen: NL CBS StatLine (CC BY 4.0), BE FOD Economie maximumprijzen. Voertuiggegevens: RDW Open Data (CC0). Controleer altijd de prijs aan de pomp — deze tool geeft een schatting, geen advies.</p>
     <p class="app-build" id="app-build"></p>
+    </details>
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="vehicle-calc.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

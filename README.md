@@ -107,6 +107,76 @@ Changing any setting re-runs the comparison automatically.
 | Compare against | *Nearest station* or *a price I pay anyway*. |
 | Price per country | Your own observed pump price. It is used only for stations without a station-specific price. |
 
+### Vehicle and kenteken lookup (optional)
+
+You can type a **Dutch** licence plate (kenteken), or skip it and fill everything in yourself. The manual flow works
+as before. Belgian and German plates are not supported.
+
+The server looks the plate up in RDW Open Data (CC0) and combines two datasets:
+
+- `m9d7-ebf2`: make, model, body type, first admission and kerb weight;
+- `8ys7-d773`: fuel rows, hybrid class, power, consumption, CO₂ and emission class (`uitlaatemissieniveau`).
+
+Extra vehicle info and warnings are fetched **in parallel** from these datasets (also CC0) and are best-effort. If one of
+them fails, the lookup still succeeds with a partial profile, and the card names what is missing:
+
+- **APK** from `m9d7-ebf2` `vervaldatum_apk` (YYYYMMDD), relative to today in Europe/Amsterdam: expired is red,
+  ≤30 days orange, ≤60 days a subtle hint. This shows as a compact badge in the collapsed summary and in detail on the card.
+- **Recalls**:
+  - `t49b-isb7` gives the status per plate. Code `O` is an open recall; `P` means the manufacturer has reported the repair.
+  - For open recalls, the details come from `j9yg-7rg9` (defect, repair, more-info link and publication date), looked up by `referentiecode_rdw`.
+  - The possible danger comes from `9ihi-jgpf` (`mogelijk_gevaar`).
+  - Resolved recalls are only shown as a collapsible count.
+- **Body type** from `vezc-m2t6` (`carrosserietype`, `type_carrosserie_europese_omschrijving`). The number of doors comes from
+  `m9d7-ebf2` `aantal_deuren`.
+- **Drive** from `3huj-srit` (`as_nummer`, `aangedreven_as` = `J`/`N`):
+  - more than one driven axle → 4x4/AWD
+  - only axle 1 → front-wheel
+  - only axle 2 → rear-wheel
+  - otherwise unknown and not shown. The field is often empty in RDW.
+- **Extras:** pk (kW × 1.36), colour (`eerste_kleur`) and emission class.
+
+The extras use the same 24 h cache. If a profile is remembered in the browser, its recall data can be out of date until the
+next lookup; the APK status is always recomputed against today.
+
+The app shows the vehicle for you to confirm. It then fills in the fields below; each one stays editable, and a label shows where its value came from:
+
+| Field | Source, in order | Label |
+|---|---|---|
+| Fuel | Benzine → Euro95 E10 (you can switch to E5/98), Diesel → B7, LPG → LPG (preferred when the car runs on both petrol and LPG) | RDW |
+| Consumption | WLTP combined → NEDC combined → estimated from CO₂ (petrol CO₂/23.7, diesel CO₂/26.5, LPG CO₂/16.1) | RDW WLTP / RDW NEDC / *geschat uit CO₂* |
+| Tank capacity | not in RDW; estimated as *target range × lab consumption* (before the realism uplift), see below. Falls back to kerb weight (<1050 kg 35 L, 1050–1250 kg 42 L, 1250–1500 kg 52 L, >1500 kg 60 L) when consumption is missing, and for plug-in hybrids | *geschat (±920 km × 5,5 L/100)* / *geschat uit gewicht* |
+
+Tank model: target range by kerb weight is <1100 kg → 750 km, <1600 kg → 920 km, <2000 kg → 980 km, otherwise
+1050 km. For diesel the target is ×1.2, because diesels have similar tanks but use less fuel. The result
+(`range × L/100 km ÷ 100`) is snapped to the nearest of 35, 40, 42, 45, 50, 52, 55, 60, 65, 70, 75 or 80 L and
+clamped to 30–80 L. The vehicle card also shows the estimated range: tank ÷ the consumption you are actually using.
+
+Any value you change is labelled *door jou aangepast*.
+
+- **Lab values.** WLTP and NEDC are lab figures; real-world consumption is usually higher. A visible *+15% realism*
+  option is on by default (`VEHICLE_REALISM_UPLIFT_PCT`). You can switch it off or change the percentage. The raw
+  RDW value is always shown next to it.
+- **Plug-in hybrids** (OVC-HEV) get a warning: their lab consumption assumes battery driving and is unrealistic for
+  fuel-only use.
+- **Electric-only cars** are not prefilled, because this app is for liquid fuel.
+- **Litres to buy** = tank capacity × (1 − tank level). Set the level with the slider. The litres field remains a
+  direct override.
+
+Privacy and robustness:
+
+- The lookup runs server-side (`/api/kenteken`).
+- Results are cached in memory for 24 h; a "not found" is cached for 1 h.
+- The endpoint has its own rate limit of 20 per minute.
+- Logs contain only a masked plate (`AB**3D`).
+- The plate is stored in the browser only if you tick *onthoud mijn auto*.
+- The detailed vehicle fields are collapsed behind a one-line summary (*Aanpassen* / *Handmatig invullen*). They open automatically, with the reason shown, for an EV, a plug-in hybrid, a failed lookup or a missing/invalid consumption or litres value. The open/closed state is only remembered as part of the opt-in profile.
+- Errors are explicit: invalid format, not found, RDW unavailable or rate limited. In each case manual entry keeps
+  working.
+
+A possible future tank-capacity source is the CarQuery API. It is not integrated because its availability and terms
+for this use could not be confirmed.
+
 ### Language
 
 The UI is Dutch by default; the **NL / EN** toggle in the header switches it, and the choice is remembered in the
@@ -263,6 +333,7 @@ Put the app behind a TLS reverse proxy: browsers only allow GPS on HTTPS or `loc
 - `GET /api/config` — fuels, defaults, providers
 - `GET /api/geocode?q=` — address search (or `lat,lon`)
 - `GET /api/prices` — status of price providers
+- `GET /api/kenteken?k=` — RDW vehicle lookup (Dutch plates; 400 invalid, 404 not found, 429 rate limited, 501 disabled, 502 RDW unavailable)
 - `POST /api/compare` — `{ start:{lat,lon}, destination?, fuel, litres, consumption, perKmCost?, radiusKm?, overrides?, baseline?:{mode:'nearest'|'custom', price?}, lang? }`
 
 ## Project layout

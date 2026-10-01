@@ -120,12 +120,21 @@
     const v = $('consumption').value;
     return consUnit === 'kml' ? convertConsumption(v) : v;
   }
+  // One pill under Verbruik: "≈15,9 km/L · CO₂ +15%" (unit conversion + short origin); full text in the tooltip.
   function updateConsumptionHint() {
+    const node = $('consumption-origin');
     const n = Number($('consumption').value);
-    const hint = $('consumption-hint');
-    if (!(n > 0)) { hint.hidden = true; return; }
-    hint.textContent = consUnit === 'kml' ? `= ${convertConsumption(n)} L/100 km` : `= ${convertConsumption(n)} km/L`;
-    hint.hidden = false;
+    const conv = n > 0 ? `≈${num(convertConsumption(n), 1)} ${consUnit === 'kml' ? 'L/100 km' : 'km/L'}` : '';
+    const kind = veh.origins.consumption;
+    let extra = '';
+    if (kind && kind !== 'manual' && $('uplift').checked && Number($('uplift-pct').value)) extra = ` +${num($('uplift-pct').value, 0)}%`;
+    const short = { wltp: 'WLTP', nedc: 'NEDC', co2: 'CO₂', manual: t('edited', 'aangepast') }[kind] || '';
+    const text = [conv, short && short + extra].filter(Boolean).join(' · ');
+    if (!text) { node.hidden = true; node.textContent = ''; return; }
+    node.className = `origin origin-${!kind || kind === 'manual' ? 'manual' : 'auto'}`;
+    node.textContent = text;
+    node.title = [conv, kind && originText(kind) + extra].filter(Boolean).join(' · ');
+    node.hidden = false;
   }
   function setConsumptionUnit(unit, convert = true) {
     if (unit !== 'l100' && unit !== 'kml') unit = 'l100';
@@ -145,8 +154,423 @@
     try { return JSON.parse([PREF_KEY, ...LEGACY_PREF_KEYS].map((k) => localStorage.getItem(k)).find(Boolean)) || {}; } catch { return {}; }
   }
   function savePrefs() {
-    const p = { fuel: $('fuel').value, consumption: consumptionL100(), consUnit, litres: $('litres').value, radius: $('radius').value, perkm: $('perkm').value, priority: $('priority').value, per10min: $('per10min').value, minsaving: $('minsaving').value };
+    const p = {
+      fuel: $('fuel').value, consumption: consumptionL100(), consUnit, litres: $('litres').value, radius: $('radius').value, perkm: $('perkm').value, priority: $('priority').value, per10min: $('per10min').value, minsaving: $('minsaving').value,
+      tank: $('tank').value, level: $('level').value, litresOrigin: veh.origins.litres, upliftEnabled: $('uplift').checked, upliftPct: $('uplift-pct').value,
+    };
     try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* private mode */ }
+    saveRememberedCar();
+  }
+
+  // ------------------------------------------------------------ vehicle profile (optional RDW kenteken lookup)
+  // Every prefilled value carries an origin; any user edit flips it to 'manual' and is never overwritten silently.
+  const VC = window.VehicleCalc;
+  const CAR_KEY = 'tankwijzer:vehicle';
+  const veh = { vehicle: null, lab: null, origins: { fuel: null, consumption: null, tank: null, litres: null } };
+
+  function originText(kind) {
+    const v = veh.vehicle;
+    switch (kind) {
+      case 'rdw-fuel': return t('RDW', 'RDW');
+      case 'wltp': return 'RDW WLTP';
+      case 'nedc': return 'RDW NEDC';
+      case 'co2': return t(`estimated from CO₂ (${v && v.consumption.co2} g/km)`, `geschat uit CO₂ (${v && v.consumption.co2} g/km)`);
+      case 'weight': return t(`estimated from weight (${v && v.massaRijklaar} kg)`, `geschat uit gewicht (${v && v.massaRijklaar} kg)`);
+      case 'range': return t(`estimated (±${v && v.tank.rangeKm} km × ${num(v && v.tank.consumption, 1)} L/100)`, `geschat (±${v && v.tank.rangeKm} km × ${num(v && v.tank.consumption, 1)} L/100)`);
+      case 'tank': {
+        const free = 100 - Number($('level').value), tank = num($('tank').value, 0);
+        return t(`${free}% of ${tank} L tank`, `${free}% van ${tank} L tank`);
+      }
+      case 'manual': return t('adjusted by you', 'door jou aangepast');
+      default: return '';
+    }
+  }
+  function setOriginBadge(id, kind, extra) {
+    const node = $(id);
+    if (!kind) { node.hidden = true; node.textContent = ''; return; }
+    node.className = `origin origin-${kind === 'manual' ? 'manual' : 'auto'}`;
+    node.textContent = originText(kind) + (extra || '');
+    node.title = kind === 'range'
+      ? t(`Tank size is not registered by RDW. Estimate: typical range for a car of ${veh.vehicle.massaRijklaar} kg${veh.vehicle.fuelId === 'diesel' ? ' (diesel ×1.2)' : ''} × lab consumption, rounded to a common tank size. Adjust if you know better.`,
+        `Tankinhoud staat niet bij de RDW. Schatting: gangbare actieradius voor een auto van ${veh.vehicle.massaRijklaar} kg${veh.vehicle.fuelId === 'diesel' ? ' (diesel ×1,2)' : ''} × labverbruik, afgerond op een gangbare tankmaat. Pas aan als je het beter weet.`)
+      : node.textContent;
+    node.hidden = false;
+  }
+  function renderOrigins() {
+    const o = veh.origins;
+    setOriginBadge('fuel-origin', o.fuel);
+    updateConsumptionHint();
+    setOriginBadge('tank-origin', o.tank);
+    setOriginBadge('litres-origin', o.litres);
+    $('level-out').textContent = `${$('level').value}%`;
+    if ($('tank').value) $('level-hint').hidden = true;
+    renderUpliftHint();
+    renderRangeInfo();
+    renderVehicleSummary();
+  }
+  function renderRangeInfo() {
+    const node = $('vehicle-range');
+    if (!node) return;
+    const km = VC.rangeKm($('tank').value, consumptionL100());
+    node.hidden = !km;
+    node.textContent = km ? t(`Estimated range ±${num(km, 0)} km (tank ÷ consumption).`, `Geschatte actieradius ±${num(km, 0)} km (tank ÷ verbruik).`) : '';
+  }
+
+  // ------------------------------------------------------------ collapsed vehicle summary
+  let vehExpanded = false;
+  let lookupFailed = false;
+  let dismissedReason = null;
+  function vehicleAttentionReason() {
+    const inp = $('consumption');
+    return VC.vehicleAttention({
+      warnings: veh.vehicle ? veh.vehicle.warnings : [],
+      lookupFailed,
+      consumption: inp.value, consMin: Number(inp.min), consMax: Number(inp.max),
+      litres: $('litres').value,
+    });
+  }
+  function reasonText(code) {
+    return {
+      electric: t('Fully electric car: Tankwijzer compares liquid fuel only. Choose a fuel and consumption yourself.', 'Volledig elektrische auto: Tankwijzer vergelijkt alleen vloeibare brandstof. Kies zelf een brandstof en verbruik.'),
+      'unsupported-fuel': t('This fuel is not supported. Choose a fuel and consumption yourself.', 'Deze brandstof wordt niet ondersteund. Kies zelf een brandstof en verbruik.'),
+      phev: t('Plug-in hybrid: check the consumption — the lab figure is far too low for driving on fuel only.', 'Plug-in hybride: controleer het verbruik — de labwaarde is veel te laag als je alleen op brandstof rijdt.'),
+      'lookup-failed': t('The licence plate lookup did not work. Fill in your car yourself.', 'Kenteken opzoeken lukte niet. Vul je auto zelf in.'),
+      consumption: t('Fill in a valid consumption.', 'Vul een geldig verbruik in.'),
+      litres: t('Fill in how many litres you want to buy (1–200).', 'Vul in hoeveel liter je wilt tanken (1–200).'),
+    }[code] || '';
+  }
+  function renderVehicleSummary() {
+    const v = veh.vehicle;
+    const title = v ? [[v.merk, v.handelsbenaming].filter(Boolean).join(' ') || v.kenteken, v.inrichting].filter(Boolean).join(' · ') : '';
+    const cons = Number(String($('consumption').value).replace(',', '.'));
+    const tank = Number($('tank').value);
+    const litres = Number($('litres').value);
+    const parts = [
+      fuelLabel($('fuel').value),
+      cons > 0 ? `${num(cons, 1)} ${consUnit === 'kml' ? 'km/L' : 'L/100 km'}` : null,
+      tank > 0 ? t(`${num(tank, 0)} L tank`, `${num(tank, 0)} L tank`) : null,
+      litres > 0 ? t(`~${num(litres, 0)} L to buy`, `~${num(litres, 0)} L tanken`) : null,
+    ].filter(Boolean);
+    $('vehicle-summary-title').textContent = title || t('Your car', 'Je auto');
+    $('vehicle-summary-line').textContent = parts.join(' · ');
+    $('vehicle-badges').replaceChildren(...vehicleBadges(v));
+    const reason = vehicleAttentionReason();
+    const hard = reason === 'consumption' || reason === 'litres';
+    if (!reason) dismissedReason = null;
+    if (reason && reason !== dismissedReason && !vehExpanded) setVehicleExpanded(true, { persist: false });
+    const box = $('vehicle-reason');
+    box.textContent = reason ? reasonText(reason) : '';
+    box.hidden = !reason || (!hard && reason === dismissedReason);
+    setToggleText();
+  }
+  function setToggleText() {
+    $('vehicle-toggle').textContent = vehExpanded ? t('Done', 'Klaar') : (veh.vehicle ? t('Edit', 'Aanpassen') : t('Fill in manually', 'Handmatig invullen'));
+  }
+  function setVehicleExpanded(open, { persist = true, focus = false } = {}) {
+    vehExpanded = !!open;
+    $('vehicle-details').hidden = !vehExpanded;
+    $('vehicle-summary').classList.toggle('open', vehExpanded);
+    $('vehicle-toggle').setAttribute('aria-expanded', String(vehExpanded));
+    setToggleText();
+    if (focus && vehExpanded) $('fuel').focus();
+    if (persist) saveRememberedCar();
+  }
+  function toggleVehicleDetails() {
+    if (vehExpanded) {
+      const reason = vehicleAttentionReason();
+      if (reason === 'consumption' || reason === 'litres') { // keep open: required value still invalid
+        $('vehicle-reason').textContent = reasonText(reason);
+        $('vehicle-reason').hidden = false;
+        $(reason).focus();
+        return;
+      }
+      dismissedReason = reason; // a warning the user has seen; don't pop open again for it
+      $('vehicle-reason').hidden = true;
+      setVehicleExpanded(false);
+      $('vehicle-toggle').focus();
+    } else setVehicleExpanded(true, { focus: true });
+  }
+
+  function upliftPct() { return Number(String($('uplift-pct').value).replace(',', '.')) || 0; }
+  function renderUpliftHint() {
+    const wrap = $('uplift-wrap');
+    wrap.hidden = veh.lab == null;
+    if (veh.lab == null) return;
+    const src = { wltp: 'RDW WLTP', nedc: 'RDW NEDC', co2: t('CO₂ estimate', 'CO₂-schatting') }[veh.vehicle.consumption.source];
+    const res = VC.resolveConsumption({ lab: veh.lab, upliftPct: upliftPct(), upliftEnabled: $('uplift').checked });
+    const base = `${src} ${num(veh.lab, 1)} L/100 km`;
+    let txt = res.uplifted
+      ? t(`${base} → realistic ${num(res.value, 1)} (+${num(upliftPct(), 0)}%)`, `${base} → realistisch ${num(res.value, 1)} (+${num(upliftPct(), 0)}%)`)
+      : t(`${base} (lab value)`, `${base} (labwaarde)`);
+    if (veh.origins.consumption === 'manual') txt += ' · ' + t('own value used', 'eigen waarde gebruikt');
+    const hint = $('uplift-hint');
+    hint.textContent = txt;
+    hint.title = txt;
+  }
+
+  function setConsumptionL100(v) {
+    $('consumption').value = consUnit === 'kml' ? convertConsumption(v) : v;
+    updateConsumptionHint();
+  }
+  function applyLabConsumption() {
+    if (veh.lab == null) return;
+    const res = VC.resolveConsumption({ lab: veh.lab, upliftPct: upliftPct(), upliftEnabled: $('uplift').checked });
+    setConsumptionL100(res.value);
+    veh.origins.consumption = veh.vehicle.consumption.source;
+  }
+  function deriveLitres() {
+    const res = VC.resolveLitres({ tankL: $('tank').value, levelPct: $('level').value });
+    if (res.value == null) return false;
+    $('litres').value = Math.max(1, res.value);
+    veh.origins.litres = 'tank';
+    return true;
+  }
+
+  function fuelLabel(id) {
+    const f = state.config.fuels.find((x) => x.id === id);
+    return f ? (lang === 'nl' && f.labelNl ? f.labelNl : f.label) : id;
+  }
+  function apkInfo(v) {
+    const x = v && v.extras;
+    return x && x.apkExpiry ? VC.apkStatus(x.apkExpiry, VC.todayAmsterdam()) : null;
+  }
+  function relDays(d) {
+    if (d === 0) return t('today', 'vandaag');
+    if (d < 0) return t(`${-d} day${d === -1 ? '' : 's'} ago`, `${-d} dag${d === -1 ? '' : 'en'} geleden`);
+    return t(`in ${d} day${d === 1 ? '' : 's'}`, `over ${d} dag${d === 1 ? '' : 'en'}`);
+  }
+  function fmtDate(iso) {
+    return new Date(`${iso}T12:00:00`).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  /** Compact badges for the collapsed summary: only things that need attention. */
+  function vehicleBadges(v) {
+    const out = [];
+    const apk = apkInfo(v);
+    if (apk && apk.level === 'expired') out.push(el('span', { class: 'veh-badge bad', text: t('MOT expired', 'APK verlopen') }));
+    else if (apk && apk.level === 'soon') out.push(el('span', { class: 'veh-badge warn', text: t(`MOT ${relDays(apk.days)}`, `APK ${relDays(apk.days)}`) }));
+    else if (apk && apk.level === 'upcoming') out.push(el('span', { class: 'veh-badge info', text: t(`MOT ${relDays(apk.days)}`, `APK ${relDays(apk.days)}`) }));
+    const open = v && v.extras && v.extras.recalls ? v.extras.recalls.open.length : 0;
+    if (open) out.push(el('span', { class: 'veh-badge bad', text: t(`${open} open recall${open === 1 ? '' : 's'}`, `${open} open terugroepactie${open === 1 ? '' : 's'}`) }));
+    return out;
+  }
+  function vehicleExtrasNodes(v) {
+    const x = v.extras;
+    if (!x) return [];
+    const nodes = [];
+    const apk = apkInfo(v);
+    if (apk && apk.level !== 'unknown') {
+      const cls = { expired: 'warning', soon: 'warning', upcoming: 'hint' }[apk.level];
+      const txt = apk.level === 'expired'
+        ? t(`MOT (APK) expired on ${fmtDate(apk.date)} (${relDays(apk.days)}).`, `APK verlopen op ${fmtDate(apk.date)} (${relDays(apk.days)}).`)
+        : t(`MOT (APK) valid until ${fmtDate(apk.date)} (${relDays(apk.days)}).`, `APK geldig tot ${fmtDate(apk.date)} (${relDays(apk.days)}).`);
+      if (cls) nodes.push(el('p', { class: `${cls} small apk-${apk.level}`, text: txt }));
+    }
+    const r = x.recalls;
+    if (r && r.open.length) {
+      nodes.push(el('div', { class: 'recall-box' },
+        el('strong', { text: t(`${r.open.length} open recall${r.open.length === 1 ? '' : 's'}`, `${r.open.length} openstaande terugroepactie${r.open.length === 1 ? '' : 's'}`) }),
+        r.open.map((o) => el('details', { class: 'recall' },
+          el('summary', null, `${o.code}${o.defect ? ` — ${o.defect.length > 70 ? o.defect.slice(0, 70) + '…' : o.defect}` : ''}`),
+          o.defect ? el('p', { class: 'small' }, el('b', { text: t('Defect: ', 'Defect: ') }), o.defect) : null,
+          o.risks.length ? el('p', { class: 'small' }, el('b', { text: t('Possible danger: ', 'Mogelijk gevaar: ') }), o.risks.join('; ')) : null,
+          o.remedy ? el('p', { class: 'small' }, el('b', { text: t('Repair: ', 'Herstel: ') }), o.remedy) : null,
+          o.published ? el('p', { class: 'small muted', text: t(`Published by RDW ${fmtDate(o.published)}`, `Gepubliceerd door RDW ${fmtDate(o.published)}`) }) : null,
+          o.infoUrl ? el('p', { class: 'small' }, el('a', { href: o.infoUrl, target: '_blank', rel: 'noopener noreferrer', text: t('More information', 'Meer informatie') })) : null)),
+        el('p', { class: 'small muted', text: t('Contact your dealer; the repair is usually free.', 'Neem contact op met je dealer; herstel is meestal gratis.') })));
+    }
+    if (r && r.resolvedCount) {
+      nodes.push(el('details', { class: 'recall small' },
+        el('summary', null, t(`${r.resolvedCount} recall${r.resolvedCount === 1 ? '' : 's'} repaired (reported by manufacturer)`, `${r.resolvedCount} terugroepactie${r.resolvedCount === 1 ? '' : 's'} hersteld (gemeld door producent)`)),
+        el('p', { class: 'small muted', text: r.resolvedCodes.join(', ') })));
+    }
+    if (x.missing && x.missing.length) {
+      nodes.push(el('p', { class: 'hint small', text: t('Some extra RDW data (recalls, body or drive) could not be loaded right now.', 'Sommige extra RDW-gegevens (terugroepacties, carrosserie of aandrijving) konden nu niet worden opgehaald.') }));
+    }
+    return nodes;
+  }
+  function renderVehicleCard() {
+    const card = $('vehicle-card');
+    const v = veh.vehicle;
+    $('remember-wrap').hidden = !v;
+    if (!v) { card.hidden = true; card.replaceChildren(); return; }
+    const title = [v.merk, v.handelsbenaming].filter(Boolean).join(' ') || v.kenteken;
+    const x = v.extras || {};
+    const rows = [
+      [t('Body', 'Inrichting'), v.inrichting],
+      [t('First registered', 'Eerste toelating'), v.firstAdmission ? new Date(v.firstAdmission).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' }) : null],
+      [t('Fuel (RDW)', 'Brandstof (RDW)'), v.fuels.join(' + ') || null],
+      [t('Hybrid class', 'Hybride klasse'), v.hybridClass],
+      [t('Power', 'Vermogen'), v.powerKw ? `${num(v.powerKw, 0)} kW / ${num(v.powerPk, 0)} pk` : null],
+      [t('Kerb weight', 'Massa rijklaar'), v.massaRijklaar ? `${num(v.massaRijklaar, 0)} kg` : null],
+      [t('Body type', 'Carrosserie'), x.body ? [x.body.description || x.body.code, x.doors ? t(`${x.doors} doors`, `${x.doors} deuren`) : null].filter(Boolean).join(', ') : (x.doors ? t(`${x.doors} doors`, `${x.doors} deuren`) : null)],
+      [t('Drive', 'Aandrijving'), { awd: t('4x4 / AWD', '4x4 / vierwielaandrijving'), fwd: t('Front-wheel drive', 'Voorwielaandrijving'), rwd: t('Rear-wheel drive', 'Achterwielaandrijving') }[x.drive] || null],
+      [t('Colour', 'Kleur'), x.color ? x.color.charAt(0) + x.color.slice(1).toLowerCase() : null],
+      [t('Emission class', 'Emissieklasse'), x.emissionClass],
+    ].filter((r) => r[1]);
+    const warn = {
+      electric: t('This is a fully electric car. Tankwijzer compares liquid fuel only, so nothing was filled in.', 'Dit is een volledig elektrische auto. Tankwijzer vergelijkt alleen vloeibare brandstof, dus er is niets ingevuld.'),
+      'unsupported-fuel': t(`Fuel "${v.fuels.join(', ')}" is not supported (only petrol, diesel and LPG). Nothing was filled in.`, `Brandstof "${v.fuels.join(', ')}" wordt niet ondersteund (alleen benzine, diesel en LPG). Er is niets ingevuld.`),
+      'bifuel-lpg': t('Petrol + LPG car: LPG was selected. Switch to petrol above if you fill up with petrol.', 'Benzine + LPG-auto: LPG is gekozen. Kies hierboven benzine als je benzine tankt.'),
+      phev: t('Plug-in hybrid: the lab consumption assumes a charged battery and is far too low for driving on fuel only. Enter your real fuel consumption.', 'Plug-in hybride: het labverbruik gaat uit van een opgeladen accu en is veel te laag als je alleen op brandstof rijdt. Vul je echte brandstofverbruik in.'),
+    };
+    const fetched = v.fetchedAt ? fmtAge(v.fetchedAt) : '';
+    card.replaceChildren(
+      el('div', { class: 'vehicle-head' },
+        el('div', null,
+          el('strong', { text: title }),
+          v.year ? el('span', { class: 'muted', text: ` · ${v.year}` }) : null),
+        el('span', { class: 'plate', text: v.kenteken })),
+      el('dl', { class: 'vehicle-specs' }, rows.flatMap(([k, val]) => [el('dt', { text: k }), el('dd', { text: val })])),
+      el('p', { class: 'hint small', id: 'vehicle-range', hidden: true }),
+      ...v.warnings.map((w) => el('p', { class: 'warning small', text: warn[w] })),
+      ...vehicleExtrasNodes(v),
+      el('p', { class: 'hint small' },
+        t(`Source: RDW Open Data (CC0), ${fetched}. Tank size is not registered by RDW and is estimated. Is this your car? Every value below stays editable.`,
+          `Bron: RDW Open Data (CC0), ${fetched}. Tankinhoud staat niet bij de RDW en is geschat. Klopt dit? Alle waarden hieronder blijven aan te passen.`), ' ',
+        el('button', { type: 'button', class: 'linkish', id: 'vehicle-clear', text: t('Remove car', 'Auto wissen') })),
+    );
+    card.hidden = false;
+    renderRangeInfo();
+    $('vehicle-clear').addEventListener('click', clearVehicle);
+  }
+
+  /** Fill fuel / consumption / tank / litres from an RDW vehicle. Only called right after a lookup or restore. */
+  function prefillFromVehicle(v) {
+    veh.vehicle = v;
+    veh.lab = null;
+    veh.origins = { ...veh.origins, fuel: null, consumption: null, tank: null };
+    if (v.fuelSupport === 'ok') {
+      // Petrol defaults to E10, but keep an explicit E5/98 choice.
+      const keep = v.fuelId === 'e10' && $('fuel').value === 'e5_98';
+      if (!keep) $('fuel').value = v.fuelId;
+      veh.origins.fuel = 'rdw-fuel';
+      if (v.consumption && v.consumption.value) { veh.lab = v.consumption.value; applyLabConsumption(); }
+      if (v.tank && v.tank.value) {
+        $('tank').value = v.tank.value;
+        veh.origins.tank = v.tank.source;
+        if (veh.origins.litres !== 'manual') deriveLitres();
+      }
+    }
+    renderVehicleCard();
+    renderOrigins();
+  }
+
+  function clearVehicle() {
+    veh.vehicle = null;
+    veh.lab = null;
+    veh.origins.fuel = null;
+    if (veh.origins.consumption !== 'manual') veh.origins.consumption = null;
+    if (veh.origins.tank === 'weight' || veh.origins.tank === 'range') veh.origins.tank = null;
+    $('remember-car').checked = false;
+    try { localStorage.removeItem(CAR_KEY); } catch { /* private mode */ }
+    $('kenteken').value = '';
+    lookupFailed = false;
+    dismissedReason = null;
+    renderVehicleCard();
+    renderOrigins();
+  }
+
+  function saveRememberedCar() {
+    try {
+      if ($('remember-car').checked && veh.vehicle) {
+        localStorage.setItem(CAR_KEY, JSON.stringify({ vehicle: veh.vehicle, origins: veh.origins, expanded: vehExpanded }));
+      } else localStorage.removeItem(CAR_KEY);
+    } catch { /* private mode */ }
+  }
+  function restoreRememberedCar() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(CAR_KEY)); } catch { saved = null; }
+    if (!saved || !saved.vehicle) return;
+    veh.vehicle = saved.vehicle;
+    veh.lab = saved.vehicle.fuelSupport === 'ok' && saved.vehicle.consumption ? saved.vehicle.consumption.value || null : null;
+    veh.origins = { ...veh.origins, ...saved.origins };
+    $('remember-car').checked = true;
+    $('kenteken').value = VC.formatKenteken(saved.vehicle.kenteken || '');
+    vehExpanded = !!saved.expanded;
+    renderVehicleCard();
+  }
+
+  async function lookupKenteken() {
+    const errBox = $('kenteken-error');
+    errBox.hidden = true;
+    const k = VC.normalizeKenteken($('kenteken').value);
+    if (!VC.isValidKenteken(k)) {
+      errBox.textContent = t('That is not a valid Dutch licence plate (6 letters/digits, e.g. AB-123-C). Belgian plates are not supported.', 'Dat is geen geldig Nederlands kenteken (6 letters/cijfers, bijv. AB-123-C). Belgische kentekens worden niet ondersteund.');
+      errBox.hidden = false;
+      return;
+    }
+    const btn = $('kenteken-lookup');
+    btn.disabled = true;
+    btn.textContent = t('Looking up…', 'Zoeken…');
+    try {
+      const res = await fetch(`/api/kenteken?k=${encodeURIComponent(k)}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = {
+          invalid: t('That is not a valid Dutch licence plate.', 'Dat is geen geldig Nederlands kenteken.'),
+          'not-found': t('This licence plate is not in the RDW register. Check it, or fill in your car yourself.', 'Dit kenteken staat niet in het RDW-register. Controleer het, of vul je auto zelf in.'),
+          'rate-limited': t('Too many lookups right now. Wait a minute, or fill in your car yourself.', 'Te veel zoekopdrachten op dit moment. Wacht een minuut, of vul je auto zelf in.'),
+          unavailable: t('RDW is not reachable right now. Fill in your car yourself below; everything else works as usual.', 'De RDW is nu niet bereikbaar. Vul je auto hieronder zelf in; de rest werkt gewoon.'),
+          disabled: t('Licence plate lookup is switched off on this server.', 'Kentekens opzoeken staat uit op deze server.'),
+        }[body.code] || t(`Lookup failed (${res.status}). Fill in your car yourself.`, `Opzoeken mislukt (${res.status}). Vul je auto zelf in.`);
+        errBox.textContent = msg;
+        errBox.hidden = false;
+        if (body.code !== 'invalid') { lookupFailed = true; dismissedReason = null; renderVehicleSummary(); }
+        return;
+      }
+      $('kenteken').value = VC.formatKenteken(body.vehicle.kenteken);
+      lookupFailed = false;
+      dismissedReason = null;
+      prefillFromVehicle(body.vehicle);
+      if (!vehicleAttentionReason()) setVehicleExpanded(false);
+      savePrefs();
+      if (body.vehicle.fuelSupport === 'ok') scheduleAutoCompare(0);
+    } catch (err) {
+      errBox.textContent = t(`RDW lookup failed: ${err.message}. Fill in your car yourself.`, `Opzoeken bij de RDW mislukt: ${err.message}. Vul je auto zelf in.`);
+      errBox.hidden = false;
+      lookupFailed = true;
+      dismissedReason = null;
+      renderVehicleSummary();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = t('Look up', 'Opzoeken');
+    }
+  }
+
+  function wireVehicle() {
+    $('kenteken-lookup').addEventListener('click', lookupKenteken);
+    $('kenteken').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupKenteken(); } });
+    $('kenteken').addEventListener('input', (e) => {
+      $('kenteken-error').hidden = true;
+      const el = e.target;
+      const pos = el.selectionStart;
+      const atEnd = pos === el.value.length;
+      const raw = el.value.toUpperCase();
+      const formatted = VC.isValidKenteken(VC.normalizeKenteken(raw)) ? VC.formatKenteken(raw) : raw;
+      if (formatted !== el.value) {
+        el.value = formatted;
+        const p = atEnd ? formatted.length : Math.min(pos, formatted.length);
+        el.setSelectionRange(p, p);
+      }
+    });
+    $('fuel').addEventListener('change', () => { if (veh.origins.fuel) veh.origins.fuel = 'manual'; renderOrigins(); });
+    $('consumption').addEventListener('input', () => { if (veh.origins.consumption) veh.origins.consumption = 'manual'; renderOrigins(); });
+    for (const id of ['uplift', 'uplift-pct']) {
+      $(id).addEventListener(id === 'uplift' ? 'change' : 'input', () => { applyLabConsumption(); renderOrigins(); });
+    }
+    $('tank').addEventListener('input', () => {
+      veh.origins.tank = $('tank').value ? 'manual' : null;
+      if (veh.origins.litres !== 'manual') deriveLitres();
+      renderOrigins();
+    });
+    // Moving the level slider is an explicit request to derive litres from the tank again.
+    $('level').addEventListener('input', () => {
+      $('level-hint').hidden = !!deriveLitres();
+      renderOrigins();
+    });
+    $('litres').addEventListener('input', () => { veh.origins.litres = 'manual'; renderOrigins(); });
+    $('remember-car').addEventListener('change', saveRememberedCar);
+    $('vehicle-toggle').addEventListener('click', toggleVehicleDetails);
   }
 
   // ------------------------------------------------------------ init
@@ -163,6 +587,18 @@
     $('radius').value = prefs.radius || cfg.defaults.radiusKm;
     $('perkm').value = prefs.perkm || '';
     setPriority(prefs.priority || 'cheapest', prefs);
+    const vcfg = cfg.vehicle || {};
+    $('kenteken-wrap').hidden = !vcfg.kentekenLookup;
+    $('uplift-pct').value = prefs.upliftPct ?? (vcfg.realismUpliftPct ?? 15);
+    $('uplift').checked = prefs.upliftEnabled ?? true;
+    if (prefs.tank) $('tank').value = prefs.tank;
+    if (prefs.level != null && prefs.level !== '') $('level').value = prefs.level;
+    if (prefs.litresOrigin === 'tank' && prefs.tank) veh.origins.litres = 'tank';
+    if (vcfg.kentekenLookup) restoreRememberedCar();
+    if (prefs.tank && !veh.origins.tank) veh.origins.tank = veh.vehicle && veh.vehicle.tank && Number(prefs.tank) === veh.vehicle.tank.value ? veh.vehicle.tank.source : 'manual';
+    setVehicleExpanded(vehExpanded, { persist: false });
+    renderOrigins();
+    wireVehicle();
     if (cfg.build) $('app-build').textContent = cfg.build;
     initMap();
   }
@@ -182,6 +618,8 @@
     if (!state.config) return;
     renderFuelOptions();
     updateConsumptionHint();
+    renderVehicleCard();
+    renderOrigins();
     $('priority-hint').textContent = PRESETS()[$('priority').value].hint;
     for (const which of ['start', 'destination']) {
       if (!state[which]) setPoint(which, null, { quiet: true });
@@ -883,6 +1321,10 @@
 
   // ------------------------------------------------------------ wire up
   $('form').addEventListener('submit', submit);
+  // Native validation can't focus fields inside the collapsed panel: open it first.
+  $('form').addEventListener('invalid', (ev) => {
+    if ($('vehicle-details').contains(ev.target) && !vehExpanded) setVehicleExpanded(true, { persist: false });
+  }, true);
   $('gps').addEventListener('click', useGps);
   for (const b of document.querySelectorAll('#cons-toggle button')) b.addEventListener('click', () => setConsumptionUnit(b.dataset.unit));
   $('consumption').addEventListener('input', updateConsumptionHint);
@@ -910,7 +1352,7 @@
   debounceGeocode('start-q', 'start-suggestions', 'start');
   debounceGeocode('dest-q', 'dest-suggestions', 'destination');
   // Settings changes refresh the results automatically (address fields update via their suggestions / pins).
-  const isAddress = (t) => t && (t.id === 'start-q' || t.id === 'dest-q');
+  const isAddress = (t) => t && (t.id === 'start-q' || t.id === 'dest-q' || t.id === 'kenteken' || t.id === 'remember-car');
   $('form').addEventListener('input', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(e.target.tagName === 'SELECT' ? 0 : 700); });
   $('form').addEventListener('change', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(e.target.tagName === 'SELECT' ? 0 : 300); });
   init().catch((err) => showError(t(`Could not load app configuration: ${err.message}`, `Kon de app-configuratie niet laden: ${err.message}`)));
