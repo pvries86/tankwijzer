@@ -57,7 +57,11 @@
         <fieldset>
           <legend data-en="Your car">Je auto</legend>
           <div id="kenteken-wrap" hidden>
-            <label for="kenteken" data-en='Licence plate &lt;span class="unit"&gt;optional, Dutch plates only&lt;/span&gt;'>Kenteken <span class="unit">optioneel, alleen Nederlandse kentekens</span></label>
+            <div class="label-row label-row-start">
+              <label for="kenteken" data-en='Licence plate &lt;span class="unit"&gt;optional, Dutch plates only&lt;/span&gt;'>Kenteken <span class="unit">optioneel, alleen Nederlandse kentekens</span></label>
+              <span class="info-tip" tabindex="0" role="note" aria-label="Vult brandstof, verbruik en tank in via RDW — of vul zelf in." data-en-aria-label="Fills in fuel, consumption and tank from RDW — or fill in yourself."
+                    title="Vult brandstof, verbruik en tank in via RDW — of vul zelf in." data-en-title="Fills in fuel, consumption and tank from RDW — or fill in yourself.">ⓘ</span>
+            </div>
             <div class="row plate-row">
               <div class="nl-plate">
                 <span class="nl-plate-eu" aria-hidden="true">
@@ -69,7 +73,6 @@
               </div>
               <button type="button" id="kenteken-lookup" class="secondary" data-en="Look up">Opzoeken</button>
             </div>
-            <p class="hint" data-en="Fills in fuel, consumption and tank from RDW — or fill in yourself.">Vult brandstof, verbruik en tank in via RDW — of vul zelf in.</p>
             <p id="kenteken-error" class="error" role="alert" hidden></p>
           </div>
           <div id="vehicle-summary" class="vehicle-summary">
@@ -144,14 +147,16 @@
             </div>
           </div>
           </div>
-          <label id="remember-wrap" class="check remember" hidden>
+          <div id="remember-wrap" class="check remember" hidden>
             <input id="remember-car" type="checkbox">
-            <span><span data-en="Remember my car on this device">Onthoud mijn auto op dit apparaat</span> <small class="muted" data-en="(plate stays in this browser only)">(kenteken blijft alleen in deze browser)</small></span>
-          </label>
+            <label for="remember-car" data-en="Remember my car on this device">Onthoud mijn auto op dit apparaat</label>
+            <span class="info-tip" tabindex="0" role="note" aria-label="Het kenteken blijft alleen in deze browser." data-en-aria-label="The plate stays in this browser only."
+                  title="Het kenteken blijft alleen in deze browser." data-en-title="The plate stays in this browser only.">ⓘ</span>
+          </div>
         </fieldset>
 
         <fieldset>
-          <legend data-en="Is a detour worth it to you?">Is omrijden het je waard?</legend>
+          <legend><span data-en="Is a detour worth it to you?">Is omrijden het je waard?</span> <span id="priority-tip" class="info-tip" tabindex="0" role="note" aria-label="Uitleg" title="Uitleg">ⓘ</span></legend>
           <label for="priority" class="sr-only" data-en="Saving versus extra driving">Besparing tegenover extra rijden</label>
           <select id="priority">
             <option value="cheapest" data-en="Any saving counts, however far">Elke besparing telt, hoe ver ook</option>
@@ -159,12 +164,11 @@
             <option value="hassle" data-en="Only for a clear win">Alleen bij een duidelijke winst</option>
             <option value="custom" data-en="My own rule (see Advanced)">Mijn eigen regel (zie Geavanceerd)</option>
           </select>
-          <p id="priority-hint" class="hint"></p>
         </fieldset>
 
         <details class="advanced" id="advanced">
           <summary data-en="Advanced">Geavanceerd</summary>
-          <p class="adv-heading" data-en="Detour rule">Omrijregel</p>
+          <p class="adv-heading"><span data-en="Detour rule">Omrijregel</span> <span class="info-tip" tabindex="0" role="note" aria-label="Elke 10 extra minuten moet besparen: bijv. €2 betekent dat een station dat 30 min verder weg ligt minstens €6 goedkoper moet zijn dan het dichtstbijzijnde. 0 = alleen geld telt. Negeer besparingen onder: kleinere winst is de moeite niet, dan zeggen we “tank bij het dichtstbijzijnde station”. Als je deze aanpast, springt de keuze hierboven naar “Mijn eigen regel”." data-en-aria-label="Every 10 extra minutes must save: e.g. €2 means a station 30 min further away has to be at least €6 cheaper to beat the nearest one. 0 = only money counts. Ignore savings below: smaller wins aren&#x27;t worth the bother, so we say “use the nearest station”. Changing these switches the choice above to “My own rule”." title="Elke 10 extra minuten moet besparen: bijv. €2 betekent dat een station dat 30 min verder weg ligt minstens €6 goedkoper moet zijn dan het dichtstbijzijnde. 0 = alleen geld telt. Negeer besparingen onder: kleinere winst is de moeite niet, dan zeggen we “tank bij het dichtstbijzijnde station”. Als je deze aanpast, springt de keuze hierboven naar “Mijn eigen regel”." data-en-title="Every 10 extra minutes must save: e.g. €2 means a station 30 min further away has to be at least €6 cheaper to beat the nearest one. 0 = only money counts. Ignore savings below: smaller wins aren&#x27;t worth the bother, so we say “use the nearest station”. Changing these switches the choice above to “My own rule”.">ⓘ</span></p>
           <div class="grid2">
             <div>
               <label for="per10min" data-en='Every 10 extra min must save &lt;span class="unit"&gt;€&lt;/span&gt;'>Elke 10 extra min moet besparen <span class="unit">€</span></label>
@@ -175,8 +179,7 @@
               <input id="minsaving" type="number" inputmode="decimal" min="0" max="100" step="0.5">
             </div>
           </div>
-          <p class="hint" data-en="&lt;b&gt;Every 10 extra minutes must save&lt;/b&gt;: e.g. €2 means a station 30 min further away has to be at least €6 cheaper to beat the nearest one. 0 = only money counts. &lt;b&gt;Ignore savings below&lt;/b&gt;: smaller wins aren't worth the bother, so we say “use the nearest station”. Changing these switches the choice above to “My own rule”."><b>Elke 10 extra minuten moet besparen</b>: bijv. €2 betekent dat een station dat 30 min verder weg ligt minstens €6 goedkoper moet zijn dan het dichtstbijzijnde. 0 = alleen geld telt. <b>Negeer besparingen onder</b>: kleinere winst is de moeite niet, dan zeggen we “tank bij het dichtstbijzijnde station”. Als je deze aanpast, springt de keuze hierboven naar “Mijn eigen regel”.</p>
-          <p class="adv-heading" data-en="Search &amp;amp; costs">Zoeken &amp; kosten</p>
+          <p class="adv-heading"><span data-en="Search &amp;amp; costs">Zoeken &amp; kosten</span> <span class="info-tip" tabindex="0" role="note" aria-label="Zoekstraal: hoe ver (hemelsbreed) vanaf je start/route we naar stations zoeken. Overige rijkosten: slijtage, banden en onderhoud per extra km, bovenop de brandstof die je verbruikt (bijv. €0,05–0,15/km; de onbelaste kilometervergoeding van €0,23/km dekt ook afschrijving). Leeg laten = alleen brandstof meetellen." data-en-aria-label="Search radius: how far (straight line) from your start/route we look for stations. Other running cost: wear, tyres, maintenance per extra km on top of the fuel you burn (e.g. €0.05–0.15/km; the Dutch tax-free mileage allowance of €0.23/km also covers depreciation). Leave empty to count fuel only." title="Zoekstraal: hoe ver (hemelsbreed) vanaf je start/route we naar stations zoeken. Overige rijkosten: slijtage, banden en onderhoud per extra km, bovenop de brandstof die je verbruikt (bijv. €0,05–0,15/km; de onbelaste kilometervergoeding van €0,23/km dekt ook afschrijving). Leeg laten = alleen brandstof meetellen." data-en-title="Search radius: how far (straight line) from your start/route we look for stations. Other running cost: wear, tyres, maintenance per extra km on top of the fuel you burn (e.g. €0.05–0.15/km; the Dutch tax-free mileage allowance of €0.23/km also covers depreciation). Leave empty to count fuel only.">ⓘ</span></p>
           <div class="grid2">
             <div>
               <label for="radius" data-en='Search radius &lt;span class="unit"&gt;km&lt;/span&gt;'>Zoekstraal <span class="unit">km</span></label>
@@ -187,18 +190,16 @@
               <input id="perkm" type="number" min="0" max="2" step="0.01" placeholder="0.00">
             </div>
           </div>
-          <p class="hint" data-en="&lt;b&gt;Search radius&lt;/b&gt;: how far (straight line) from your start/route we look for stations. &lt;b&gt;Other running cost&lt;/b&gt;: wear, tyres, maintenance per extra km on top of the fuel you burn (e.g. €0.05–0.15/km; the Dutch tax-free mileage allowance of €0.23/km also covers depreciation). Leave empty to count fuel only."><b>Zoekstraal</b>: hoe ver (hemelsbreed) vanaf je start/route we naar stations zoeken. <b>Overige rijkosten</b>: slijtage, banden en onderhoud per extra km, bovenop de brandstof die je verbruikt (bijv. €0,05–0,15/km; de onbelaste kilometervergoeding van €0,23/km dekt ook afschrijving). Leeg laten = alleen brandstof meetellen.</p>
-          <label for="baseline-mode" data-en="Compare against">Vergelijk met</label>
+          <div class="label-row label-row-start"><label for="baseline-mode" data-en="Compare against">Vergelijk met</label> <span class="info-tip" tabindex="0" role="note" aria-label="Besparingen worden hiermee vergeleken. Dichtstbijzijnde station: het station met de kortste omweg. Een prijs die ik toch al betaal: bijv. je vaste station op je woon-werkroute, dat geen extra rijden kost." data-en-aria-label="Savings are measured against this. Nearest station: the station with the shortest detour. A price I pay anyway: e.g. your usual station on your commute, which costs no extra driving." title="Besparingen worden hiermee vergeleken. Dichtstbijzijnde station: het station met de kortste omweg. Een prijs die ik toch al betaal: bijv. je vaste station op je woon-werkroute, dat geen extra rijden kost." data-en-title="Savings are measured against this. Nearest station: the station with the shortest detour. A price I pay anyway: e.g. your usual station on your commute, which costs no extra driving.">ⓘ</span></div>
           <select id="baseline-mode">
             <option value="nearest" data-en="The nearest station (default)">Het dichtstbijzijnde station (standaard)</option>
             <option value="custom" data-en="A price I pay anyway, with no extra km">Een prijs die ik toch al betaal, zonder extra km</option>
           </select>
-          <p class="hint" data-en="Savings are measured against this. &lt;b&gt;Nearest station&lt;/b&gt;: the station with the shortest detour. &lt;b&gt;A price I pay anyway&lt;/b&gt;: e.g. your usual station on your commute, which costs no extra driving.">Besparingen worden hiermee vergeleken. <b>Dichtstbijzijnde station</b>: het station met de kortste omweg. <b>Een prijs die ik toch al betaal</b>: bijv. je vaste station op je woon-werkroute, dat geen extra rijden kost.</p>
           <div id="baseline-price-wrap" hidden>
             <label for="baseline-price" data-en='Your reference price &lt;span class="unit"&gt;€/L&lt;/span&gt;'>Jouw vergelijkingsprijs <span class="unit">€/L</span></label>
             <input id="baseline-price" type="number" min="0.3" max="5" step="0.001">
           </div>
-          <p class="hint" data-en="&lt;b&gt;Manual prices&lt;/b&gt;: seen an actual pump price? Enter it for a country and it's used for that country's stations that have no station-specific price (instead of the NL/BE country estimate, or instead of skipping them elsewhere). Stations with their own quote keep it."><b>Handmatige prijzen</b>: een echte pompprijs gezien? Vul hem in voor een land; hij wordt gebruikt voor stations in dat land zonder eigen stationsprijs (in plaats van de landelijke NL/BE-schatting, of in plaats van ze elders over te slaan). Stations met een eigen prijs houden die.</p>
+          <p class="adv-heading"><span data-en="Manual prices">Handmatige prijzen</span> <span class="info-tip" tabindex="0" role="note" aria-label="Handmatige prijzen: een echte pompprijs gezien? Vul hem in voor een land; hij wordt gebruikt voor stations in dat land zonder eigen stationsprijs (in plaats van de landelijke NL/BE-schatting, of in plaats van ze elders over te slaan). Stations met een eigen prijs houden die." data-en-aria-label="Manual prices: seen an actual pump price? Enter it for a country and it&#x27;s used for that country&#x27;s stations that have no station-specific price (instead of the NL/BE country estimate, or instead of skipping them elsewhere). Stations with their own quote keep it." title="Handmatige prijzen: een echte pompprijs gezien? Vul hem in voor een land; hij wordt gebruikt voor stations in dat land zonder eigen stationsprijs (in plaats van de landelijke NL/BE-schatting, of in plaats van ze elders over te slaan). Stations met een eigen prijs houden die." data-en-title="Manual prices: seen an actual pump price? Enter it for a country and it&#x27;s used for that country&#x27;s stations that have no station-specific price (instead of the NL/BE country estimate, or instead of skipping them elsewhere). Stations with their own quote keep it.">ⓘ</span></p>
           <div id="overrides" class="grid2"></div>
           <p id="overrides-empty" class="hint" data-en="A price field appears here for each country found after your first comparison.">Na je eerste vergelijking verschijnt hier een prijsveld voor elk gevonden land.</p>
         </details>
@@ -213,13 +214,12 @@
            data-en-aria-label="Map of stations. Click the map to drop a start or destination pin."></div>
       <p id="map-hint" class="map-hint muted" data-en="Tip: click the map to drop a start (A) or destination (B) pin; drag a pin to move it.">Tip: klik op de kaart voor een start- (A) of bestemmingspin (B); sleep een pin om hem te verplaatsen.</p>
       <div id="empty" class="empty">
-        <h2 data-en="How it works">Zo werkt het</h2>
+        <h2><span data-en="How it works">Zo werkt het</span> <span class="info-tip" tabindex="0" role="note" aria-label="Stationsprijzen komen van bronnen per station waar die zijn ingesteld; anders worden openbaar gepubliceerde landelijke cijfers gebruikt en als schatting gemarkeerd. Bij elke prijs staan bron en datum." data-en-aria-label="Station prices come from per-station sources where configured; otherwise openly published country figures are used and labelled as estimates. Every price shows its source and date." title="Stationsprijzen komen van bronnen per station waar die zijn ingesteld; anders worden openbaar gepubliceerde landelijke cijfers gebruikt en als schatting gemarkeerd. Bij elke prijs staan bron en datum." data-en-title="Station prices come from per-station sources where configured; otherwise openly published country figures are used and labelled as estimates. Every price shows its source and date.">ⓘ</span></h2>
         <ol>
           <li data-en="Choose your location (GPS, address or a pin on the map), fuel and how much you'll buy.">Kies je locatie (GPS, adres of een pin op de kaart), brandstof en hoeveel je gaat tanken.</li>
           <li data-en="We find the stations around you — or along your route — and route to each, across borders too.">We zoeken de stations om je heen — of langs je route — en berekenen de route naar elk station, ook over de grens.</li>
           <li data-en="The cost of the extra kilometres (and, if you like, your time) is subtracted from the price difference.">De kosten van de extra kilometers (en desgewenst je tijd) worden van het prijsverschil afgetrokken.</li>
         </ol>
-        <p class="muted" data-en="Station prices come from per-station sources where configured; otherwise openly published country figures are used and labelled as estimates. Every price shows its source and date.">Stationsprijzen komen van bronnen per station waar die zijn ingesteld; anders worden openbaar gepubliceerde landelijke cijfers gebruikt en als schatting gemarkeerd. Bij elke prijs staan bron en datum.</p>
       </div>
       <div id="loading" class="loading" hidden><span class="spinner" aria-hidden="true"></span> <span data-en="Finding stations and routes…">Stations en routes zoeken…</span></div>
       <div id="updating" class="updating-badge" role="status" hidden><span class="spinner" aria-hidden="true"></span> <span data-en="Updating…">Bijwerken…</span></div>
@@ -227,7 +227,7 @@
         <div id="recommendation" class="recommendation"></div>
         <div id="warnings"></div>
         <p id="summary" class="summary"></p>
-        <h3 class="section-title"><span data-en="Stations">Stations</span> <span class="muted small" data-en="sorted by net saving">gesorteerd op nettobesparing</span></h3>
+        <h3 class="section-title"><span data-en="Stations">Stations</span> <span class="info-tip" tabindex="0" role="note" aria-label="Gesorteerd op nettobesparing." data-en-aria-label="Sorted by net saving." title="Gesorteerd op nettobesparing." data-en-title="Sorted by net saving.">ⓘ</span></h3>
         <ol id="station-list" class="station-list"></ol>
         <details class="info">
           <summary data-en="Assumptions &amp;amp; baseline">Aannames &amp; vergelijkingspunt</summary>

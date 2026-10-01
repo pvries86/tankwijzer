@@ -47,6 +47,16 @@
     }
     return node;
   }
+  /** Keyboard-focusable ⓘ with the explanation as tooltip and accessible name (always plain text). */
+  function infoTip(text, attrs) {
+    const s = String(text == null ? '' : text);
+    return el('span', { class: 'info-tip', tabindex: '0', role: 'note', 'aria-label': s, title: s, text: 'ⓘ', ...attrs });
+  }
+  function setTip(node, text) {
+    const s = String(text == null ? '' : text);
+    node.title = s;
+    node.setAttribute('aria-label', s);
+  }
 
   function fmtAge(iso) {
     if (!iso) return t('unknown date', 'onbekende datum');
@@ -72,9 +82,9 @@
     'station-report': t('Station report', 'Stationsmelding'),
   });
   const CONFIDENCE_LABEL = () => ({
-    high: t('High confidence: actual pump prices for this station and the comparison point', 'Hoge zekerheid: echte pompprijzen voor dit station én het vergelijkingspunt'),
-    medium: t('Medium confidence: compares a station quote with an estimate (or an older quote)', 'Gemiddelde zekerheid: vergelijkt een stationsprijs met een schatting (of een oudere prijs)'),
-    low: t('Low confidence: based on country estimates, not pump prices', 'Lage zekerheid: gebaseerd op landelijke schattingen, niet op pompprijzen'),
+    // High confidence is the normal case and is not shown.
+    medium: { label: t('Medium confidence', 'Gemiddelde zekerheid'), reason: t('Compares a station quote with an estimate (or an older quote).', 'Vergelijkt een stationsprijs met een schatting (of een oudere prijs).') },
+    low: { label: t('Low confidence', 'Lage zekerheid'), reason: t('Based on country estimates, not pump prices.', 'Gebaseerd op landelijke schattingen, niet op pompprijzen.') },
   });
 
   function priceLabel(p) {
@@ -376,7 +386,7 @@
           o.remedy ? el('p', { class: 'small' }, el('b', { text: t('Repair: ', 'Herstel: ') }), o.remedy) : null,
           o.published ? el('p', { class: 'small muted', text: t(`Published by RDW ${fmtDate(o.published)}`, `Gepubliceerd door RDW ${fmtDate(o.published)}`) }) : null,
           o.infoUrl ? el('p', { class: 'small' }, el('a', { href: o.infoUrl, target: '_blank', rel: 'noopener noreferrer', text: t('More information', 'Meer informatie') })) : null)),
-        el('p', { class: 'small muted', text: t('Contact your dealer; the repair is usually free.', 'Neem contact op met je dealer; herstel is meestal gratis.') })));
+        el('p', { class: 'small muted' }, t('Contact your dealer', 'Neem contact op met je dealer'), ' ', infoTip(t('The repair is usually free.', 'Herstel is meestal gratis.')))));
     }
     if (r && r.resolvedCount) {
       nodes.push(el('details', { class: 'recall small' },
@@ -424,9 +434,10 @@
       el('p', { class: 'hint small', id: 'vehicle-range', hidden: true }),
       ...v.warnings.map((w) => el('p', { class: 'warning small', text: warn[w] })),
       ...vehicleExtrasNodes(v),
-      el('p', { class: 'hint small' },
-        t(`Source: RDW Open Data (CC0), ${fetched}. Tank size is not registered by RDW and is estimated. Is this your car? Every value below stays editable.`,
-          `Bron: RDW Open Data (CC0), ${fetched}. Tankinhoud staat niet bij de RDW en is geschat. Klopt dit? Alle waarden hieronder blijven aan te passen.`), ' ',
+      el('p', { class: 'hint small source-line' },
+        t('Source: RDW (CC0)', 'Bron: RDW (CC0)'), ' ',
+        infoTip(t(`RDW Open Data (CC0), ${fetched}. Tank size is not registered by RDW and is estimated. Every value below stays editable.`,
+          `RDW Open Data (CC0), ${fetched}. Tankinhoud staat niet bij de RDW en is geschat. Alle waarden hieronder blijven aan te passen.`)), ' · ',
         el('button', { type: 'button', class: 'linkish', id: 'vehicle-clear', text: t('Remove car', 'Auto wissen') })),
     );
     card.hidden = false;
@@ -620,7 +631,7 @@
     updateConsumptionHint();
     renderVehicleCard();
     renderOrigins();
-    $('priority-hint').textContent = PRESETS()[$('priority').value].hint;
+    setTip($('priority-tip'), PRESETS()[$('priority').value].hint);
     for (const which of ['start', 'destination']) {
       if (!state[which]) setPoint(which, null, { quiet: true });
       else if (state[which].auto) setPoint(which, { ...state[which], label: state[which].auto() }, { quiet: true });
@@ -648,7 +659,7 @@
       $('per10min').value = p.per10min;
       $('minsaving').value = p.minsaving ?? state.config.minWorthwhileSaving;
     }
-    $('priority-hint').textContent = p.hint;
+    setTip($('priority-tip'), p.hint);
   }
 
 
@@ -1035,13 +1046,13 @@
     box.className = `recommendation ${r.level}`;
     const best = data.results.find((s) => s.id === r.stationId);
     const conf = CONFIDENCE_LABEL()[r.confidence];
-    box.replaceChildren(
+    box.replaceChildren(...[
       el('h2', { text: r.headline }),
-      conf ? el('p', { class: `confidence ${r.confidence}`, text: conf }) : null,
+      conf ? el('p', { class: `confidence ${r.confidence}` }, conf.label, ' ', infoTip(conf.reason)) : null,
       el('p', { text: r.detail }),
       ...(r.caveats || []).map((c) => el('p', { class: 'caveat', text: `⚠ ${c}` })),
       best ? el('div', { class: 'actions' }, navLinks(best, true)) : null,
-    );
+    ].filter(Boolean));
   }
 
   function renderWarnings(data) {
@@ -1118,7 +1129,8 @@
           el('span', null, t('Total ', 'Totaal '), el('b', { text: eur(s.total) }), t(` (fuel ${eur(s.fuelCost)} + driving ${eur(s.detourCost)})`, ` (brandstof ${eur(s.fuelCost)} + rijden ${eur(s.detourCost)})`)),
           el('span', null, t('Break-even: ', 'Omslagpunt: '), el('b', { text: breakEvenText(s.breakEven) }))),
         el('div', { class: 'provenance', text: `${s.localFuelName}${p.product ? t(` (listed as "${p.product}")`, ` (vermeld als "${p.product}")`) : ''} · ${p.source} · ${priceFreshness(p)}${s.fuelAvailability === 'unknown' ? t(' · fuel availability not confirmed in OSM', ' · beschikbaarheid brandstof niet bevestigd in OSM') : ''}` }),
-        p.estimate ? el('div', { class: 'provenance estimate-note', text: `${t("Not this pump's price", 'Niet de prijs van deze pomp')}${p.fallbackReason ? ` — ${p.fallbackReason}` : ''}. ${estNote}` }) : null,
+        p.estimate ? el('div', { class: 'provenance estimate-note' }, t("Not this pump's price", 'Niet de prijs van deze pomp'),
+          [p.fallbackReason, estNote].filter(Boolean).length ? [' ', infoTip([p.fallbackReason, estNote].filter(Boolean).join(' — '))] : null) : null,
         navLinks(s, false)));
     });
     if (!data.results.length) list.append(el('li', { class: 'muted', text: t('No stations with a known price.', 'Geen stations met een bekende prijs.') }));
@@ -1346,7 +1358,7 @@
   $('baseline-mode').addEventListener('change', () => { $('baseline-price-wrap').hidden = $('baseline-mode').value !== 'custom'; });
   $('priority').addEventListener('change', () => setPriority($('priority').value, { per10min: $('per10min').value, minsaving: $('minsaving').value }));
   for (const id of ['per10min', 'minsaving']) {
-    $(id).addEventListener('input', () => { $('priority').value = 'custom'; $('priority-hint').textContent = PRESETS().custom.hint; });
+    $(id).addEventListener('input', () => { $('priority').value = 'custom'; setTip($('priority-tip'), PRESETS().custom.hint); });
   }
   for (const b of document.querySelectorAll('.lang-toggle button')) b.addEventListener('click', () => setLanguage(b.dataset.lang));
   debounceGeocode('start-q', 'start-suggestions', 'start');
