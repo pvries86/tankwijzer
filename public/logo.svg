@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none"><path fill="#0f6b4f" fill-rule="evenodd" d="M12 6a4 4 0 0 0-4 4v29H6a1.5 1.5 0 0 0 0 3h25a1.5 1.5 0 0 0 0-3h-2V10a4 4 0 0 0-4-4H12Zm1 6a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 13 23h11a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 24 12H13Z"/><path d="M29 23h2a4 4 0 0 1 4 4v7a4 4 0 0 0 8 0V20l-6-7" stroke="#0f6b4f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M39 16v5h4" stroke="#0f6b4f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 28h7" stroke="#fff" stroke-opacity=".8" stroke-width="2" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <path fill="#0f6b4f" fill-rule="evenodd" d="M14 5a6 6 0 0 0-6 6v27H6a2 2 0 0 0 0 4h26a2 2 0 0 0 0-4h-2V11a6 6 0 0 0-6-6H14Zm0 6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V13a2 2 0 0 0-2-2H14Z"/>
+  <path d="m22.5 14.5-2 5-5 2 2-5 5-2Z" fill="#0f6b4f"/>
+  <path d="M30 23h1a5 5 0 0 1 5 5v5a4 4 0 0 0 8 0V20l-7-8" stroke="#0f6b4f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40 15.5V21h4" stroke="#0f6b4f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16 31h6" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+</svg>
