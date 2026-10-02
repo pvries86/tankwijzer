@@ -91,7 +91,12 @@ test('back-to-top handles page/panel scrolling, footer clearance and reduced mot
       getBoundingClientRect: () => ({ left: 330, right: 390, top: 710, bottom: 750 }),
     }];
     win.fire('resize');
-    assert.equal(button.style.bottom, '102px', 'avoids other controls');
+    assert.equal(button.style.bottom, '32px', 'does not jump above other controls');
+    assert.equal(button.style.visibility, 'hidden', 'avoids covering other controls');
+    controls = [];
+    win.fire('resize');
+    assert.equal(button.style.visibility, '', 'reappears when overlap ends');
+    assert.equal(button.style.bottom, '32px');
     button.fire('click');
     assert.deepEqual(calls, Array(2).fill({ top: 0, behavior: reduced ? 'instant' : 'smooth' }));
     assert.equal(focused, true);

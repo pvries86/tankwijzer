@@ -61,9 +61,10 @@
     function update() {
       button.hidden = Math.max(win.scrollY, ...panels.map((panel) => panel.scrollTop)) < 250;
       if (button.hidden) return;
-      let bottom = Math.max(12, win.innerHeight - footer.getBoundingClientRect().top + 12);
+      const bottom = Math.max(12, win.innerHeight - footer.getBoundingClientRect().top + 12);
       button.style.bottom = `${bottom}px`;
-      // Keep the floating control clear of visible navigation and form buttons.
+      button.style.visibility = '';
+      // Hide during overlap instead of chasing controls as they scroll past.
       const controls = [...doc.querySelectorAll('a, button, summary, input, select')]
         .filter((control) => control !== button && control.getClientRects().length)
         .map((control) => control.getBoundingClientRect())
@@ -72,8 +73,8 @@
         const own = button.getBoundingClientRect();
         if (rect.right > own.left - 8 && rect.left < own.right + 8 &&
             rect.bottom > own.top - 8 && rect.top < own.bottom + 8) {
-          bottom = Math.max(bottom, win.innerHeight - rect.top + 12);
-          button.style.bottom = `${bottom}px`;
+          button.style.visibility = 'hidden';
+          break;
         }
       }
     }
