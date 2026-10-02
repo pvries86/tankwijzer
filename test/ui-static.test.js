@@ -40,3 +40,13 @@ test('high confidence is not labelled; medium/low have a reason', () => {
   assert.match(m[1], /low\s*:/);
   assert.equal((m[1].match(/reason\s*:/g) || []).length, 2);
 });
+
+test('map scrolling and back-to-top are accessible and wired', () => {
+  assert.match(html, /id="back-to-top"[^>]*type="button"[^>]*hidden[^>]*aria-label="Terug naar boven"[^>]*data-en-aria-label="Back to top"/);
+  assert.match(html, /src="scroll-controls.js"/);
+  assert.match(js, /scrollWheelZoom: false/);
+  assert.match(js, /ScrollControls\.backToTop/);
+  assert.match(js, /ScrollControls\.mapGestures/);
+  const css = readFileSync(path.join(__dirname, '../public/styles.css'), 'utf8');
+  assert.match(css, /#map\.leaflet-container\s*\{\s*touch-action: auto/);
+});

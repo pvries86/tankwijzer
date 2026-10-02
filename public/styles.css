@@ -177,6 +177,11 @@ summary { cursor: pointer; font-size: .9rem; font-weight: 600; color: var(--acce
 
 /* The map stays in view while scrolling the station list, so a clicked station is visible at once. */
 .map { height: var(--map-h, 320px); background: #e8ece8; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 600; box-shadow: 0 2px 6px rgba(0, 0, 0, .08); }
+#map.leaflet-container { touch-action: auto; }
+.map-gesture-hint { position: absolute; z-index: 800; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max-content; max-width: calc(100% - 2rem); padding: .5rem .75rem; border-radius: 8px; background: rgba(29, 35, 32, .85); color: #fff; font-size: .85rem; text-align: center; pointer-events: none; }
+.back-to-top { position: fixed; z-index: 900; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(255, 255, 255, .85); color: var(--ink); font-size: 1.35rem; box-shadow: var(--shadow); }
+.back-to-top:hover, .back-to-top:focus-visible { background: var(--panel); }
+.back-to-top:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 @media (max-height: 560px) { .map { position: relative; } }
 .map.no-map { display: none; }
 .map.no-map + .map-hint { display: none; }

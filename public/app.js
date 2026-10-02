@@ -587,6 +587,7 @@
   // ------------------------------------------------------------ init
   async function init() {
     applyStaticTexts();
+    ScrollControls.backToTop($('back-to-top'), [...document.querySelectorAll('.form-panel, .results-panel')], document.querySelector('.footer'), window, document);
     const cfg = await fetch('/api/config').then((r) => r.json());
     state.config = cfg;
     const prefs = loadPrefs();
@@ -667,7 +668,10 @@
       $('map').classList.add('no-map');
       return;
     }
-    state.map = L.map('map', { scrollWheelZoom: true }).setView([51.3, 4.6], 8);
+    state.map = L.map('map', { scrollWheelZoom: false }).setView([51.3, 4.6], 8);
+    const gestureHint = el('div', { class: 'map-gesture-hint', hidden: true, 'aria-live': 'polite' });
+    $('map').append(gestureHint);
+    ScrollControls.mapGestures(state.map, $('map'), gestureHint, t, /Mac|iPhone|iPad/.test(navigator.platform));
     // OSM's tile usage policy requires a Referer; the page itself is served with no-referrer,
     // so tiles opt in to sending just the origin (never paths or query strings).
     L.tileLayer(state.config.map.tileUrl, {
