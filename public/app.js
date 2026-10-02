@@ -278,7 +278,7 @@
   }
   function setVehicleExpanded(open, { persist = true, focus = false } = {}) {
     vehExpanded = !!open;
-    $('vehicle-details').hidden = !vehExpanded;
+    Disclosures.transition($('vehicle-details'), vehExpanded);
     $('vehicle-summary').classList.toggle('open', vehExpanded);
     $('vehicle-toggle').setAttribute('aria-expanded', String(vehExpanded));
     setToggleText();
@@ -587,6 +587,7 @@
   // ------------------------------------------------------------ init
   async function init() {
     applyStaticTexts();
+    Disclosures.init(document);
     ScrollControls.backToTop($('back-to-top'), [...document.querySelectorAll('.form-panel, .results-panel')], document.querySelector('.footer'), window, document);
     const cfg = await fetch('/api/config').then((r) => r.json());
     state.config = cfg;
@@ -703,7 +704,7 @@
   function usePin(which, latlng) {
     const p = droppedPoint(latlng);
     $(which === 'start' ? 'start-q' : 'dest-q').value = `${p.lat}, ${p.lon}`;
-    if (which === 'destination') $('dest-block').open = true;
+    if (which === 'destination') Disclosures.transition($('dest-block'), true, true);
     setPoint(which, p);
   }
 
@@ -1040,7 +1041,7 @@
     if (!data.baseline) return;
     const route = data.input.mode === 'route';
     const modeBtn = el('button', { type: 'button', class: 'linkish', text: route ? t('change destination', 'bestemming wijzigen') : t('add a destination', 'voeg een bestemming toe') });
-    modeBtn.addEventListener('click', () => { $('dest-block').open = true; $('dest-q').focus(); $('dest-block').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    modeBtn.addEventListener('click', () => { Disclosures.transition($('dest-block'), true, true); $('dest-q').focus({ preventScroll: true }); $('dest-block').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' }); });
     const base = data.baseline.name ? t(`the nearest station, ${data.baseline.name}`, `het dichtstbijzijnde station, ${data.baseline.name}`) : data.baseline.label;
     s.append(
       t('Savings are compared with ', 'Besparingen zijn vergeleken met '), el('b', { text: base }),
