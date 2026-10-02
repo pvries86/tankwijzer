@@ -50,3 +50,14 @@ test('map scrolling and back-to-top are accessible and wired', () => {
   const css = readFileSync(path.join(__dirname, '../public/styles.css'), 'utf8');
   assert.match(css, /#map\.leaflet-container\s*\{\s*touch-action: auto/);
 });
+
+test('info tips use a touch and keyboard operable popover with plain-text explanations', () => {
+  assert.match(html, /src="info-tips.js"/);
+  const tips = readFileSync(path.join(__dirname, '../public/info-tips.js'), 'utf8');
+  assert.match(tips, /addEventListener\('click'/);
+  assert.match(tips, /event\.key === 'Enter'/);
+  assert.match(tips, /event\.key === ' '/);
+  assert.match(tips, /event\.key === 'Escape'/);
+  assert.match(tips, /bubble\.textContent = /);
+  assert.match(tips, /aria-expanded/);
+});

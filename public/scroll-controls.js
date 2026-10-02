@@ -19,8 +19,10 @@
     const release = () => {
       engaged = false;
       map.scrollWheelZoom.disable();
+      map.dragging.disable();
     };
     map.scrollWheelZoom.disable();
+    map.dragging.disable();
     container.addEventListener('wheel', (event) => {
       if (engaged || event.ctrlKey || event.metaKey) {
         event.preventDefault();
@@ -47,8 +49,11 @@
     // Leave one-finger gestures to the browser; Leaflet TouchZoom handles
     // both translation and zoom for two fingers without enabling dragging.
     container.addEventListener('pointerdown', (event) => {
-      if (event.pointerType === 'touch') map.dragging.disable();
-      else map.dragging.enable();
+      if (event.pointerType === 'mouse') map.dragging.enable();
+      else map.dragging.disable();
+    }, { capture: true, passive: true });
+    container.addEventListener('mousedown', (event) => {
+      if (!event.sourceCapabilities?.firesTouchEvents && !('ontouchstart' in container)) map.dragging.enable();
     }, { capture: true, passive: true });
     container.addEventListener('touchstart', (event) => {
       map.dragging.disable();

@@ -14,6 +14,7 @@ number of litres from which the trip pays off.
 - Navigation links: Google Maps, OSM, `geo:` on Android, Apple Maps on iOS.
 - Every price shows its kind, source and date or age. Estimates are always labelled as such.
 - Dutch UI by default, with an NL/EN toggle.
+- Tap an information icon to open its explanation on mobile; Enter/Space opens it with the keyboard. Tap again, tap outside, or press Escape to close.
 - Scroll over the map to continue through results; Ctrl/⌘ + wheel zooms. Click or focus the map to temporarily enable normal wheel zoom (until leaving it). On touchscreens, use two fingers to move/zoom the map; one finger scrolls the page. The floating arrow returns the page and desktop scroll panels to the top, respecting reduced-motion preferences.
 - No npm dependencies: runs on the Node 22 standard library, with vanilla JS and Leaflet in the browser.
 

@@ -50,6 +50,7 @@ test('Mac hint and one-finger touch pass through without preventing page scroll'
   const container = target();
   const hint = {};
   mapGestures(map, container, hint, (en) => en, true);
+  assert.equal(map.dragging.active, false, 'disabled before the first native touch');
   container.fire('wheel');
   assert.match(hint.textContent, /⌘/);
   container.fire('pointerdown', { pointerType: 'touch' });
