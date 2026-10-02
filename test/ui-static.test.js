@@ -64,6 +64,8 @@ test('info tips use a touch and keyboard operable popover with plain-text explan
 
 test('balanced driving preference is the default while remembered choices are preserved', () => {
   assert.match(html, /<option value="balanced" selected/);
+  const priority = html.match(/<select id="priority">([\s\S]*?)<\/select>/)[1];
+  assert.deepEqual([...priority.matchAll(/value="([^"]+)"/g)].map((m) => m[1]), ['balanced', 'hassle', 'cheapest', 'custom']);
   assert.match(js, /setPriority\(prefs\.priority \|\| 'balanced', prefs\)/);
   assert.match(js, /if \(!presets\[name\]\) name = 'balanced'/);
   assert.match(js, /if \(!prefs\.balancedDefaultApplied\)/);
