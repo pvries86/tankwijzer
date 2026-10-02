@@ -61,3 +61,9 @@ test('info tips use a touch and keyboard operable popover with plain-text explan
   assert.match(tips, /bubble\.textContent = /);
   assert.match(tips, /aria-expanded/);
 });
+
+test('balanced driving preference is the default while remembered choices are preserved', () => {
+  assert.match(html, /<option value="balanced" selected/);
+  assert.match(js, /setPriority\(prefs\.priority \|\| 'balanced', prefs\)/);
+  assert.match(js, /if \(!presets\[name\]\) name = 'balanced'/);
+});

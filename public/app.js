@@ -599,7 +599,7 @@
     $('litres').value = prefs.litres || cfg.defaults.litres;
     $('radius').value = prefs.radius || cfg.defaults.radiusKm;
     $('perkm').value = prefs.perkm || '';
-    setPriority(prefs.priority || 'cheapest', prefs);
+    setPriority(prefs.priority || 'balanced', prefs);
     const vcfg = cfg.vehicle || {};
     $('kenteken-wrap').hidden = !vcfg.kentekenLookup;
     $('uplift-pct').value = prefs.upliftPct ?? (vcfg.realismUpliftPct ?? 15);
@@ -651,7 +651,7 @@
   });
   function setPriority(name, prefs) {
     const presets = PRESETS();
-    if (!presets[name]) name = 'cheapest';
+    if (!presets[name]) name = 'balanced';
     $('priority').value = name;
     const p = presets[name];
     if (name === 'custom') {
