@@ -66,4 +66,7 @@ test('balanced driving preference is the default while remembered choices are pr
   assert.match(html, /<option value="balanced" selected/);
   assert.match(js, /setPriority\(prefs\.priority \|\| 'balanced', prefs\)/);
   assert.match(js, /if \(!presets\[name\]\) name = 'balanced'/);
+  assert.match(js, /if \(!prefs\.balancedDefaultApplied\)/);
+  assert.match(js, /prefs\.priority === 'cheapest'/);
+  assert.match(js, /balancedDefaultApplied: true/);
 });

@@ -161,12 +161,25 @@
   const PREF_KEY = 'tankwijzer:prefs';
   const LEGACY_PREF_KEYS = ['fuel-detour:prefs', 'border-fuel:prefs'];
   function loadPrefs() {
-    try { return JSON.parse([PREF_KEY, ...LEGACY_PREF_KEYS].map((k) => localStorage.getItem(k)).find(Boolean)) || {}; } catch { return {}; }
+    try {
+      const prefs = JSON.parse([PREF_KEY, ...LEGACY_PREF_KEYS].map((k) => localStorage.getItem(k)).find(Boolean)) || {};
+      if (!prefs.balancedDefaultApplied) {
+        if (!prefs.priority || prefs.priority === 'cheapest') {
+          prefs.priority = 'balanced';
+          prefs.per10min = 2;
+          prefs.minsaving = 2;
+        }
+        prefs.balancedDefaultApplied = true;
+        localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+      }
+      return prefs;
+    } catch { return {}; }
   }
   function savePrefs() {
     const p = {
       fuel: $('fuel').value, consumption: consumptionL100(), consUnit, litres: $('litres').value, radius: $('radius').value, perkm: $('perkm').value, priority: $('priority').value, per10min: $('per10min').value, minsaving: $('minsaving').value,
       tank: $('tank').value, level: $('level').value, litresOrigin: veh.origins.litres, upliftEnabled: $('uplift').checked, upliftPct: $('uplift-pct').value,
+      balancedDefaultApplied: true,
     };
     try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* private mode */ }
     saveRememberedCar();
