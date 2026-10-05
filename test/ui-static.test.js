@@ -89,3 +89,15 @@ test('balanced driving preference is the default while remembered choices are pr
   assert.match(js, /prefs\.priority === 'cheapest'/);
   assert.match(js, /balancedDefaultApplied: true/);
 });
+
+test('automatic station discovery has visible fuel, explicit retry and no compare/default vehicle dependency', () => {
+  assert.doesNotMatch(html, /id="submit"|Compare stations|Vergelijk stations/);
+  assert.match(html, /id="retry"[^>]*data-en="Try again"/);
+  assert.ok(html.indexOf('select id="fuel"') < html.indexOf('id="vehicle-details"'));
+  assert.match(html, /id="loading"[^>]*role="status"/);
+  assert.match(html, /src="auto-compare.js"/);
+  assert.doesNotMatch(js, /cfg\.defaults\.(consumption|litres)|runCompare|compareSeq/);
+  assert.match(js, /if \(autoPick\)/, 'confirmation is required even for a single geocode suggestion');
+  assert.match(js, /pendingAdvice: body\.advice/);
+  assert.match(js, /consumptionOrigin: veh\.origins\.consumption/);
+});

@@ -56,6 +56,8 @@
 
         <fieldset>
           <legend data-en="Your car">Je auto</legend>
+          <label for="fuel" data-en="Fuel for station prices">Brandstof voor stationsprijzen</label>
+          <select id="fuel"></select>
           <div id="kenteken-wrap" hidden>
             <div class="label-row label-row-start">
               <label for="kenteken" data-en='Licence plate &lt;span class="unit"&gt;optional, Dutch plates only&lt;/span&gt;'>Kenteken <span class="unit">optioneel, alleen Nederlandse kentekens</span></label>
@@ -86,11 +88,7 @@
           <p id="vehicle-reason" class="warning small" role="status" hidden></p>
           <div id="vehicle-details" class="vehicle-details" hidden>
           <div id="vehicle-card" class="vehicle-card" hidden></div>
-          <div class="label-row">
-            <label for="fuel" data-en="Fuel">Brandstof</label>
-            <span id="fuel-origin" class="origin" hidden></span>
-          </div>
-          <select id="fuel"></select>
+          <span id="fuel-origin" class="origin" hidden></span>
           <div class="grid2">
             <div>
               <div class="label-row">
@@ -201,30 +199,30 @@
           </div>
         </details>
 
-        <button type="submit" id="submit" class="primary" data-en="Compare stations">Vergelijk stations</button>
         <p id="form-error" class="error" role="alert" hidden></p>
+        <button type="button" id="retry" class="secondary" data-en="Try again" hidden>Opnieuw proberen</button>
       </form>
     </section>
 
-    <section class="panel results-panel" aria-live="polite">
+    <section class="panel results-panel">
       <div id="map" class="map" role="region" aria-label="Kaart met stations. Klik op de kaart om een start- of bestemmingspin te plaatsen."
            data-en-aria-label="Map of stations. Click the map to drop a start or destination pin."></div>
       <p id="map-hint" class="map-hint muted" data-en="Tip: click the map to drop a start (A) or destination (B) pin; drag a pin to move it.">Tip: klik op de kaart voor een start- (A) of bestemmingspin (B); sleep een pin om hem te verplaatsen.</p>
       <div id="empty" class="empty">
         <h2><span data-en="How it works">Zo werkt het</span> <span class="info-tip" tabindex="0" role="note" aria-label="Stationsprijzen komen van bronnen per station waar die zijn ingesteld; anders worden openbaar gepubliceerde landelijke cijfers gebruikt en als schatting gemarkeerd. Bij elke prijs staan bron en datum." data-en-aria-label="Station prices come from per-station sources where configured; otherwise openly published country figures are used and labelled as estimates. Every price shows its source and date." title="Stationsprijzen komen van bronnen per station waar die zijn ingesteld; anders worden openbaar gepubliceerde landelijke cijfers gebruikt en als schatting gemarkeerd. Bij elke prijs staan bron en datum." data-en-title="Station prices come from per-station sources where configured; otherwise openly published country figures are used and labelled as estimates. Every price shows its source and date.">ⓘ</span></h2>
         <ol>
-          <li data-en="Choose your location (GPS, address or a pin on the map), fuel and how much you'll buy.">Kies je locatie (GPS, adres of een pin op de kaart), brandstof en hoeveel je gaat tanken.</li>
+          <li data-en="Choose your location (GPS, select an address or drop a pin). Stations and prices load automatically for the selected fuel.">Kies je locatie (GPS, selecteer een adres of plaats een pin). Stations en prijzen laden automatisch voor de gekozen brandstof.</li>
           <li data-en="We find the stations around you or along your route, and route to each, across borders too.">We zoeken de stations om je heen of langs je route en berekenen de route naar elk station, ook over de grens.</li>
-          <li data-en="The cost of the extra kilometres (and, if you like, your time) is subtracted from the price difference.">De kosten van de extra kilometers (en desgewenst je tijd) worden van het prijsverschil afgetrokken.</li>
+          <li data-en="Enter consumption and litres to buy for savings advice, including extra driving costs.">Vul verbruik en liters tanken in voor besparingsadvies, inclusief extra rijkosten.</li>
         </ol>
       </div>
-      <div id="loading" class="loading" hidden><span class="spinner" aria-hidden="true"></span> <span data-en="Finding stations and routes…">Stations en routes zoeken…</span></div>
+      <div id="loading" class="loading" role="status" hidden><span class="spinner" aria-hidden="true"></span> <span data-en="Finding stations and prices…">Stations en prijzen zoeken…</span></div>
       <div id="updating" class="updating-badge" role="status" hidden><span class="spinner" aria-hidden="true"></span> <span data-en="Updating…">Bijwerken…</span></div>
       <div id="results" hidden>
         <div id="recommendation" class="recommendation"></div>
         <div id="warnings"></div>
         <p id="summary" class="summary"></p>
-        <h3 class="section-title"><span data-en="Stations">Stations</span> <span class="info-tip" tabindex="0" role="note" aria-label="Gesorteerd op nettobesparing." data-en-aria-label="Sorted by net saving." title="Gesorteerd op nettobesparing." data-en-title="Sorted by net saving.">ⓘ</span></h3>
+        <h3 class="section-title"><span data-en="Stations">Stations</span> <span id="station-sort-tip" class="info-tip" tabindex="0" role="note" aria-label="Gesorteerd op omwegafstand, of op nettobesparing zodra je autogegevens compleet zijn." data-en-aria-label="Sorted by detour distance, or net saving once your car details are complete." title="Gesorteerd op omwegafstand, of op nettobesparing zodra je autogegevens compleet zijn." data-en-title="Sorted by detour distance, or net saving once your car details are complete.">ⓘ</span></h3>
         <ol id="station-list" class="station-list"></ol>
         <details class="info">
           <summary data-en="Assumptions &amp;amp; baseline">Aannames &amp; vergelijkingspunt</summary>
@@ -253,6 +251,7 @@
   <script src="info-tips.js"></script>
   <script src="disclosures.js"></script>
   <script src="vehicle-calc.js"></script>
+  <script src="auto-compare.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

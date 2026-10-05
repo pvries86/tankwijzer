@@ -98,7 +98,20 @@ break-even    = litres at which saving(S) = 0
 
 ### Form settings
 
-Changing any setting re-runs the comparison automatically.
+Choosing a location (GPS, a selected search result, Enter to confirm a search, or a map pin) loads stations and
+available prices automatically. Typing an address only searches for suggestions; it does not load stations.
+The fuel selector stays visible, even without a car profile.
+
+Without usable consumption and litres to buy, stations are ordered by detour distance, with no savings,
+break-even amounts or recommendation. Missing prices remain visible as unavailable. Fill in the car manually
+or look up a plate to activate advice. A usable remembered profile also works; old unlabelled default values
+are not treated as supplied car details. Plug-in hybrids need a manually confirmed real fuel consumption.
+
+Changes update automatically after about 400 ms, including tank level, realism uplift and detour preferences.
+Invalid vehicle input returns to prices-only mode; invalid search/cost settings show a correction message.
+New changes cancel or supersede older responses, without moving focus, scrolling to results or resetting the
+map viewport. Errors have an explicit retry button. Arithmetic changes reuse stations, prices and routes for
+five minutes; provider-level caches and request budgets remain in force, including on retry.
 
 | Setting | Meaning |
 |---|---|
@@ -108,7 +121,6 @@ Changing any setting re-runs the comparison automatically.
 | Search radius (km) | Radius around the start (or along the route) in which stations are considered. |
 | Other running cost (€/km) | Wear, tyres and maintenance per detour km (e.g. €0.05–0.15). |
 | Compare against | *Nearest station* or *a price I pay anyway*. |
-| Price per country | Your own observed pump price. It is used only for stations without a station-specific price. |
 
 ### Vehicle and kenteken lookup (optional)
 
@@ -324,7 +336,15 @@ Put the app behind a TLS reverse proxy: browsers only allow GPS on HTTPS or `loc
 - `GET /api/geocode?q=`: address search (or `lat,lon`)
 - `GET /api/prices`: status of price providers
 - `GET /api/kenteken?k=`: RDW vehicle lookup (Dutch plates; 400 invalid, 404 not found, 429 rate limited, 501 disabled, 502 RDW unavailable)
-- `POST /api/compare`: `{ start:{lat,lon}, destination?, fuel, litres, consumption, perKmCost?, radiusKm?, baseline?:{mode:'nearest'|'custom', price?}, lang? }`
+- `POST /api/compare`: `{ start:{lat,lon}, destination?, fuel, advice?, litres?, consumption?, perKmCost?, timeValuePerHour?, minSaving?, radiusKm?, baseline?:{mode:'nearest'|'custom', price?}, lang?, refresh? }`
+  - `advice` defaults to `true`: requires consumption above 0 and at most 50 L/100 km, and 1–200 litres.
+  - `advice:false` discovers stations/prices without vehicle values. Returns `input.advice:false`, null consumption/litres,
+    null baseline/recommendation, empty `bestByCountry`, and no economic fields on results. Results are ordered by
+    detour distance; price or route can be null. Source/fallback warnings and navigation remain available.
+  - Discovery and advice share an in-memory preparation cache keyed by coordinates, fuel, radius and language
+    (five minutes, at most 100 areas). Concurrent requests share preparation. Arithmetic and ranking changes do not
+    call external providers again. `refresh:true` invalidates this preparation, not provider caches or block markers.
+    Failed preparation is not cached, so an explicit retry can recover.
 
 ## Project layout
 

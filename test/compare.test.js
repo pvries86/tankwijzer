@@ -157,7 +157,7 @@ test('compare: missing prices produce warning and no crash', async () => {
     const d = await (await post(base, { start: START, fuel: 'e10', litres: 40, consumption: 6 })).json();
     assert.equal(d.results.length, 0);
     assert.equal(d.recommendation.level, 'none');
-    assert.ok(d.warnings.some((w) => /station\(s\) skipped: no current station-specific .* price and no country estimate/.test(w)));
+    assert.ok(d.warnings.some((w) => /station\(s\) skipped in savings advice: no current station-specific .* price and no country estimate/.test(w)));
     assert.deepEqual([...d.skippedCountries].sort(), ['BE', 'NL']);
   });
 });
@@ -167,6 +167,8 @@ test('API input validation returns 400', async () => {
     for (const body of [
       {},
       { start: START, fuel: 'e10', litres: 0, consumption: 6 },
+      { start: START, fuel: 'e10', litres: 40, consumption: 0 },
+      { start: START, fuel: 'e10', litres: 40 },
       { start: START, fuel: 'kerosene', litres: 10, consumption: 6 },
       { start: { lat: 999, lon: 0 }, fuel: 'e10', litres: 10, consumption: 6 },
       { start: START, destination: { lat: 40, lon: 4 }, fuel: 'e10', litres: 10, consumption: 6 },
@@ -178,6 +180,89 @@ test('API input validation returns 400', async () => {
     assert.equal(bad.status, 400);
   });
 });
+
+  test('discovery: stations, prices, provenance and navigation without invented economics', async () => {
+    await withApp(liveDeps(), {}, async (base) => {
+      const res = await post(base, { start: START, fuel: 'e10', advice: false });
+      assert.equal(res.status, 200);
+      const d = await res.json();
+      assert.equal(d.input.advice, false);
+      assert.equal(d.input.consumption, null);
+      assert.equal(d.input.litres, null);
+      assert.equal(d.recommendation, null);
+      assert.equal(d.baseline, null);
+      assert.deepEqual(d.bestByCountry, {});
+      assert.deepEqual(d.results.map((s) => s.id), ['nl1', 'be1']);
+      for (const s of d.results) {
+        for (const key of ['saving', 'cashSaving', 'total', 'breakEven', 'isBaseline']) assert.equal(s[key], undefined);
+        assert.ok(s.price.source);
+        assert.ok(s.navigation.google);
+        assert.ok(s.route.detourKm > 0);
+      }
+      assert.ok(d.assumptions.some((a) => /ordered by detour distance/.test(a)));
+      assert.ok(d.assumptions.every((a) => !/null L|Baseline:|ranked by saving/.test(a)));
+      const advice = await (await post(base, { start: START, fuel: 'e10', consumption: 6, litres: 40 })).json();
+      assert.equal(advice.input.advice, true);
+      assert.equal(advice.recommendation.stationId, 'be1');
+    });
+  });
+
+  test('discovery: unpriced and unroutable stations stay visible, never enter savings advice', async () => {
+    const deps = { ...liveDeps(), priceProviders: [], router: { async distances() {
+      return { ...await stubRouter.distances({ stations }), toStation: [NaN, 5] };
+    } } };
+    await withApp(deps, {}, async (base) => {
+      const d = await (await post(base, { start: START, fuel: 'e10', advice: false, lang: 'nl' })).json();
+      assert.equal(d.results.length, 2);
+      assert.ok(d.results.every((s) => s.price === null && s.saving === undefined));
+      assert.equal(d.results.find((s) => s.id === 'nl1').route, null);
+      assert.ok(d.assumptions.some((a) => /niet van besparing/.test(a)));
+    });
+  });
+
+  test('discovery/advice preparation is shared in flight and reused for arithmetic changes', async () => {
+    const deps = liveDeps();
+    let finds = 0, prices = 0, routes = 0;
+    const find = deps.stationProvider.find;
+    deps.stationProvider.find = async (...args) => { finds++; return find(...args); };
+    const reference = deps.priceProviders[0].reference;
+    deps.priceProviders[0].reference = async (...args) => { prices++; return reference(...args); };
+    deps.router = { async distances(...args) { routes++; return stubRouter.distances(...args); } };
+    await withApp(deps, {}, async (base) => {
+      const body = { start: START, fuel: 'e10', advice: false };
+      const [discovery, advice] = await Promise.all([
+        post(base, body).then((r) => r.json()),
+        post(base, { ...body, advice: true, consumption: 6, litres: 40 }).then((r) => r.json()),
+      ]);
+      assert.equal(discovery.recommendation, null);
+      assert.equal(advice.recommendation.stationId, 'be1');
+      const changed = await (await post(base, { ...body, advice: true, consumption: 7, litres: 20, timeValuePerHour: 30, minSaving: 5 })).json();
+      assert.notEqual(changed.results[0].total, advice.results[0].total);
+      assert.deepEqual([finds, prices, routes], [1, 1, 1]);
+      await post(base, { ...body, fuel: 'diesel' });
+      await post(base, { ...body, radiusKm: 25 });
+      await post(base, { ...body, refresh: true });
+      assert.deepEqual([finds, prices, routes], [4, 4, 4]);
+    });
+  });
+
+  test('discovery errors can be retried and malformed locations/fuels remain rejected', async () => {
+    const deps = liveDeps();
+    let fail = true;
+    deps.stationProvider = { async find() {
+      if (fail) throw new Error('temporarily offline');
+      return { stations, source: { provider: 'stub' } };
+    } };
+    await withApp(deps, {}, async (base) => {
+      const body = { start: START, fuel: 'e10', advice: false };
+      assert.equal((await post(base, body)).status, 502);
+      fail = false;
+      assert.equal((await post(base, body)).status, 200);
+      for (const change of [{ start: null }, { fuel: 'unknown' }, { radiusKm: 0 }]) {
+        assert.equal((await post(base, { ...body, ...change })).status, 400);
+      }
+    });
+  });
 
 test('API: config, geocode, static files and security headers', async () => {
   await withApp(liveDeps(), {}, async (base) => {

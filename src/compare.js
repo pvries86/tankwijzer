@@ -26,6 +26,7 @@ function point(p, name, required) {
 }
 
 function parseInput(body, config) {
+  const advice = body.advice !== false;
   const lang = normLang(body.lang);
   const start = point(body.start, 'start', true);
   const destination = point(body.destination, 'destination', false);
@@ -34,11 +35,11 @@ function parseInput(body, config) {
   }
   const fuel = getFuel(body.fuel);
   if (!fuel) throw new InputError('unknown fuel type');
-  const litres = num(body.litres);
-  const consumption = num(body.consumption);
+  const litres = advice ? num(body.litres) : null;
+  const consumption = advice ? num(body.consumption) : null;
   const perKmCost = body.perKmCost === undefined || body.perKmCost === '' ? 0 : num(body.perKmCost);
-  if (!(litres > 0 && litres <= 200)) throw new InputError('litres must be between 0 and 200');
-  if (!(consumption >= 0 && consumption <= 50)) throw new InputError('consumption must be between 0 and 50 L/100 km');
+  if (advice && !(litres >= 1 && litres <= 200)) throw new InputError('litres must be between 1 and 200');
+  if (advice && !(consumption > 0 && consumption <= 50)) throw new InputError('consumption must be above 0 and at most 50 L/100 km');
   if (!(perKmCost >= 0 && perKmCost <= 2)) throw new InputError('per-km cost must be between 0 and 2 EUR/km');
   const radius = body.radiusKm === undefined || body.radiusKm === '' ? config.searchRadiusKm : num(body.radiusKm);
   if (!(radius >= 1 && radius <= 50)) throw new InputError('search radius must be between 1 and 50 km');
@@ -53,7 +54,7 @@ function parseInput(body, config) {
     if (!(p > 0.3 && p < 5)) throw new InputError('reference price must be between 0.30 and 5.00 EUR/L');
     baseline = { mode: 'custom', price: p, label: tr(lang)('Your reference price (no extra km)', 'Je eigen referentieprijs (zonder extra km)') };
   }
-  return { lang, start, destination, fuel, litres, consumption, perKmCost, timeValuePerHour, minSaving, radiusKm: radius, baseline };
+  return { advice, lang, start, destination, fuel, litres, consumption, perKmCost, timeValuePerHour, minSaving, radiusKm: radius, baseline };
 }
 
 function navigationLinks(start, station, destination) {
@@ -92,8 +93,9 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
     return null;
   }
 
-  return async function compare(body) {
-    const input = parseInput(body || {}, config);
+  const prepared = new Map();
+  const inflight = new Map();
+  async function prepare(input) {
     const { start, destination, fuel, lang } = input;
     const t = tr(lang);
     const warnings = [];
@@ -174,13 +176,13 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
       if (!s.price) unpriced[s.country] = (unpriced[s.country] || 0) + 1;
     }
     for (const [c, n] of Object.entries(unpriced)) {
-      warnings.push(t(`${n} ${c} station(s) skipped: no current station-specific ${fuel.label} price${refs[c] ? '' : ' and no country estimate'}.`,
-        `${n} ${c}-station(s) overgeslagen: geen actuele eigen prijs voor ${fuelName}${refs[c] ? '' : ' en geen landelijke schatting'}.`));
+      warnings.push(t(`${n} ${c} station(s) skipped in savings advice: no current station-specific ${fuel.label} price${refs[c] ? '' : ' and no country estimate'}.`,
+        `${n} ${c}-station(s) overgeslagen bij besparingsadvies: geen actuele eigen prijs voor ${fuelName}${refs[c] ? '' : ' en geen landelijke schatting'}.`));
     }
     const skippedCountries = Object.keys(unpriced);
 
     // 3. routing
-    const routable = priced.filter((s) => s.price);
+    const routable = priced;
     let routes = null;
     if (routable.length) {
       try {
@@ -204,15 +206,42 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
         detourKm: detourKm({ startToStationKm: to, stationToEndKm: from, baseTripKm: routes.baseTripKm }),
         detourMin: Math.max(0, (routes.toStationMin[i] || 0) + (routes.fromStationMin[i] || 0) - (routes.baseTripMin || 0)),
       };
-      options.push({ id: s.id, price: s.price.price, detourKm: s.route.detourKm, detourMin: s.route.detourMin, label: s.name });
+      if (s.price) options.push({ id: s.id, price: s.price.price, detourKm: s.route.detourKm, detourMin: s.route.detourMin, label: s.name });
     });
+    return { priced, routes, options, refs, warnings, skippedCountries, stationResult, priceStatus };
+  }
 
-    const cmp = options.length
+  return async function compare(body) {
+    const input = parseInput(body || {}, config);
+    const { start, destination, fuel, lang } = input;
+    const t = tr(lang);
+    // Arithmetic-only changes reuse the same stations, prices and routes. Failed
+    // preparations are not cached; retries still respect each provider's own cache/budget.
+    const key = JSON.stringify([start.lat, start.lon, destination && [destination.lat, destination.lon], fuel.id, input.radiusKm, lang]);
+    if (body.refresh === true) prepared.delete(key);
+    let entry = prepared.get(key);
+    if (!entry || entry.expires <= Date.now()) {
+      if (!inflight.has(key)) {
+        const promise = prepare(input).then((data) => {
+          if (prepared.size >= 100) prepared.delete(prepared.keys().next().value);
+          prepared.set(key, { data, expires: Date.now() + 300000 });
+          return data;
+        }).finally(() => inflight.delete(key));
+        inflight.set(key, promise);
+      }
+      entry = { data: await inflight.get(key) };
+    }
+    const { priced, routes, options, refs, warnings, skippedCountries, stationResult, priceStatus } = entry.data;
+    const fuelName = t(fuel.label, fuel.labelNl || fuel.label);
+
+    const cmp = input.advice && options.length
       ? compareOptions({ options, litres: input.litres, consumptionL100: input.consumption, perKmCost: input.perKmCost, timeValuePerHour: input.timeValuePerHour, baseline: input.baseline })
       : { baseline: null, results: [], best: null };
 
     const byId = new Map(priced.map((s) => [s.id, s]));
-    const results = cmp.results.map((r) => {
+    const rows = input.advice ? cmp.results : priced.slice().sort((a, b) =>
+      (a.route ? a.route.detourKm : Infinity) - (b.route ? b.route.detourKm : Infinity) || a.id.localeCompare(b.id)).map((s) => ({ id: s.id }));
+    const results = rows.map((r) => {
       const s = byId.get(r.id);
       return {
         id: s.id,
@@ -226,23 +255,25 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
         fuelAvailability: s.fuelAvailability,
         localFuelName: fuel.local[s.country] || fuelName,
         price: s.price,
-        route: {
+        route: s.route ? {
           toStationKm: round(s.route.toStationKm, 1),
           fromStationKm: round(s.route.fromStationKm, 1),
           detourKm: round(s.route.detourKm, 1),
           detourMin: round(s.route.detourMin, 0),
-        },
-        extraKm: round(r.extraKm, 1),
-        extraMin: round(r.extraMin, 0),
-        detourFuelL: round(r.cost.detourFuelL, 2),
-        fuelCost: round(r.cost.fuelCost, 2),
-        detourCost: round(r.cost.detourCashCost, 2),
-        timeCost: round(r.cost.detourTimeCost, 2),
-        total: round(r.cost.cashTotal, 2),
-        saving: round(r.saving, 2),
-        cashSaving: round(r.cashSaving, 2),
-        breakEven: { kind: r.breakEven.kind, litres: r.breakEven.litres === null ? null : round(r.breakEven.litres, 1) },
-        isBaseline: r.isBaseline,
+        } : null,
+        ...(input.advice ? {
+          extraKm: round(r.extraKm, 1),
+          extraMin: round(r.extraMin, 0),
+          detourFuelL: round(r.cost.detourFuelL, 2),
+          fuelCost: round(r.cost.fuelCost, 2),
+          detourCost: round(r.cost.detourCashCost, 2),
+          timeCost: round(r.cost.detourTimeCost, 2),
+          total: round(r.cost.cashTotal, 2),
+          saving: round(r.saving, 2),
+          cashSaving: round(r.cashSaving, 2),
+          breakEven: { kind: r.breakEven.kind, litres: r.breakEven.litres === null ? null : round(r.breakEven.litres, 1) },
+          isBaseline: r.isBaseline,
+        } : {}),
         navigation: navigationLinks(start, s, destination),
       };
     });
@@ -258,16 +289,16 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
       total: round(cmp.baseline.cost.cashTotal, 2),
     };
 
-    const recommendation = recommend(results, baseline, input, config, routes);
+    const recommendation = input.advice ? recommend(results, baseline, input, config, routes) : null;
     const bestByCountry = {};
-    for (const r of results) {
+    for (const r of input.advice ? results : []) {
       if (!bestByCountry[r.country]) bestByCountry[r.country] = { id: r.id, name: r.name, saving: r.saving, cashSaving: r.cashSaving, total: r.total };
     }
 
     return {
       input: {
         start, destination, fuel: { id: fuel.id, label: fuel.label, labelNl: fuel.labelNl, local: fuel.local },
-        lang,
+        lang, advice: input.advice,
         litres: input.litres, consumption: input.consumption, perKmCost: input.perKmCost,
         timeValuePerHour: input.timeValuePerHour, minSaving: input.minSaving,
         radiusKm: input.radiusKm, baseline: input.baseline, mode: destination ? 'route' : 'round-trip',
@@ -435,24 +466,29 @@ function assumptions(input, config, routes) {
     a.push(t('Round-trip mode (no destination): extra km = start → station → start. Use this if you would otherwise not drive anywhere.',
       'Heen-en-terugmodus (geen bestemming): extra km = start → station → start. Gebruik dit als je anders nergens heen zou rijden.'));
   }
-  a.push(input.baseline.mode === 'custom'
-    ? t(`Baseline: refuelling at €${input.baseline.price.toFixed(3)}/L with no extra driving.`,
-      `Vergelijkingspunt: tanken voor €${fmtNum(input.baseline.price, 3, "nl")}/L zonder extra rijden.`)
-    : t('Baseline: the station with the smallest detour (the nearest one), whatever its country.',
-      'Vergelijkingspunt: het station met de kleinste omweg (het dichtstbijzijnde), in welk land dan ook.'));
-  a.push(t(`Detour fuel (${input.consumption} L/100 km) is valued at the price paid at that station; plus €${input.perKmCost.toFixed(2)}/km other running costs.`,
-    `Brandstof voor de omweg (${input.consumption} L/100 km) wordt gerekend tegen de prijs bij dat station; plus €${fmtNum(input.perKmCost, 2, "nl")}/km overige rijkosten.`));
-  a.push(input.timeValuePerHour > 0
-    ? t(`Detour rule: a further station must save at least ${money(input.timeValuePerHour / 6)} per 10 extra minutes of driving (travel times from the routing service). Stations are ranked by saving minus that amount; the € savings shown are real money.`,
-      `Omrijregel: een verder station moet minstens ${money(input.timeValuePerHour / 6)} per 10 extra minuten rijden besparen (reistijden van de routeplanner). Stations worden gerangschikt op besparing min dat bedrag; de getoonde €-besparingen zijn echt geld.`)
-    : t('Extra driving time is not counted: only money counts.', 'Extra rijtijd telt niet mee: alleen geld telt.'));
-  a.push(t(`A different station is only recommended if it is worth at least ${money(input.minSaving)} to you.`,
-    `Een ander station wordt alleen aangeraden als het je minstens ${money(input.minSaving)} oplevert.`));
-  a.push(t('Tolls, parking, loyalty discounts and card fees are not included.', 'Tol, parkeren, spaarkortingen en pastransactiekosten zijn niet meegerekend.'));
+  if (input.advice) {
+    a.push(input.baseline.mode === 'custom'
+      ? t(`Baseline: refuelling at €${input.baseline.price.toFixed(3)}/L with no extra driving.`,
+        `Vergelijkingspunt: tanken voor €${fmtNum(input.baseline.price, 3, "nl")}/L zonder extra rijden.`)
+      : t('Baseline: the station with the smallest detour (the nearest one), whatever its country.',
+        'Vergelijkingspunt: het station met de kleinste omweg (het dichtstbijzijnde), in welk land dan ook.'));
+    a.push(t(`Detour fuel (${input.consumption} L/100 km) is valued at the price paid at that station; plus €${input.perKmCost.toFixed(2)}/km other running costs.`,
+      `Brandstof voor de omweg (${input.consumption} L/100 km) wordt gerekend tegen de prijs bij dat station; plus €${fmtNum(input.perKmCost, 2, "nl")}/km overige rijkosten.`));
+    a.push(input.timeValuePerHour > 0
+      ? t(`Detour rule: a further station must save at least ${money(input.timeValuePerHour / 6)} per 10 extra minutes of driving (travel times from the routing service). Stations are ranked by saving minus that amount; the € savings shown are real money.`,
+        `Omrijregel: een verder station moet minstens ${money(input.timeValuePerHour / 6)} per 10 extra minuten rijden besparen (reistijden van de routeplanner). Stations worden gerangschikt op besparing min dat bedrag; de getoonde €-besparingen zijn echt geld.`)
+      : t('Extra driving time is not counted: only money counts.', 'Extra rijtijd telt niet mee: alleen geld telt.'));
+    a.push(t(`A different station is only recommended if it is worth at least ${money(input.minSaving)} to you.`,
+      `Een ander station wordt alleen aangeraden als het je minstens ${money(input.minSaving)} oplevert.`));
+    a.push(t('Tolls, parking, loyalty discounts and card fees are not included.', 'Tol, parkeren, spaarkortingen en pastransactiekosten zijn niet meegerekend.'));
+  } else {
+    a.push(t('Stations are ordered by detour distance, not savings. Enter consumption and litres to buy for savings advice.',
+      'Stations staan op volgorde van omwegafstand, niet van besparing. Vul verbruik en liters tanken in voor besparingsadvies.'));
+  }
   a.push(t(`Stations are the ${config.maxStationsPerCountry} closest per country within ${input.radiusKm} km (straight-line pre-selection); with ANWB, stations that list prices for other fuels but not this one are skipped.`,
     `Stations zijn de ${config.maxStationsPerCountry} dichtstbijzijnde per land binnen ${input.radiusKm} km (hemelsbrede voorselectie); bij ANWB worden stations overgeslagen die wel prijzen voor andere brandstoffen hebben, maar niet voor deze.`));
-  a.push(t('Prices: a station-specific quote where available (Belgium: CARBU.COM first, with the station\'s price date; otherwise ANWB Onderweg, retrieved at most ~24 h ago, price date not reported); otherwise, for NL/BE only, a country ESTIMATE (NL: CBS national average, BE: FOD legal maximum), marked as such. Stations in other countries are only shown with a station quote.',
-    'Prijzen: een eigen stationsprijs waar beschikbaar (België: eerst CARBU.COM, met de prijsdatum van het station; anders ANWB Onderweg, hooguit ~24 u geleden opgehaald, prijsdatum niet gemeld); anders, alleen voor NL/BE, een landelijke SCHATTING (NL: CBS landelijk gemiddelde, BE: FOD wettelijke maximumprijs), als zodanig gemarkeerd. Stations in andere landen worden alleen getoond met een stationsprijs.'));
+  a.push(t('Prices: a station-specific quote where available (Belgium: CARBU.COM first, with the station\'s price date; otherwise ANWB Onderweg, retrieved at most ~24 h ago, price date not reported); otherwise, for NL/BE only, a country ESTIMATE (NL: CBS national average, BE: FOD legal maximum), marked as such. Stations in other countries enter savings advice only with a station quote.',
+    'Prijzen: een eigen stationsprijs waar beschikbaar (België: eerst CARBU.COM, met de prijsdatum van het station; anders ANWB Onderweg, hooguit ~24 u geleden opgehaald, prijsdatum niet gemeld); anders, alleen voor NL/BE, een landelijke SCHATTING (NL: CBS landelijk gemiddelde, BE: FOD wettelijke maximumprijs), als zodanig gemarkeerd. Stations in andere landen tellen alleen mee voor besparingsadvies met een stationsprijs.'));
   if (routes) {
     a.push(routes.mode === 'road'
       ? t('Distances: shortest-time car route from the routing service.', 'Afstanden: snelste autoroute volgens de routeplanner.')

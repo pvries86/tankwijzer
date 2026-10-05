@@ -3,6 +3,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const state = { start: null, destination: null, config: null, map: null, layer: null };
+  const pointRevision = { start: 0, destination: 0 };
 
   // ------------------------------------------------------------ language (Dutch default, English optional)
   const LANG_KEY = 'tankwijzer:lang';
@@ -178,6 +179,7 @@
     const p = {
       fuel: $('fuel').value, consumption: consumptionL100(), consUnit, litres: $('litres').value, radius: $('radius').value, perkm: $('perkm').value, priority: $('priority').value, per10min: $('per10min').value, minsaving: $('minsaving').value,
       tank: $('tank').value, level: $('level').value, litresOrigin: veh.origins.litres, upliftEnabled: $('uplift').checked, upliftPct: $('uplift-pct').value,
+      consumptionOrigin: veh.origins.consumption,
       balancedDefaultApplied: true,
     };
     try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* private mode */ }
@@ -241,9 +243,11 @@
   // ------------------------------------------------------------ collapsed vehicle summary
   let vehExpanded = false;
   let lookupFailed = false;
+  let vehicleLookupRevision = 0;
   let dismissedReason = null;
   function vehicleAttentionReason() {
     const inp = $('consumption');
+    if (!veh.vehicle && !lookupFailed && !inp.value && !$('litres').value) return null;
     return VC.vehicleAttention({
       warnings: veh.vehicle ? veh.vehicle.warnings : [],
       lookupFailed,
@@ -279,7 +283,7 @@
     const reason = vehicleAttentionReason();
     const hard = reason === 'consumption' || reason === 'litres';
     if (!reason) dismissedReason = null;
-    if (reason && reason !== dismissedReason && !vehExpanded) setVehicleExpanded(true, { persist: false });
+    if (reason && reason !== dismissedReason && !vehExpanded && (v || lookupFailed)) setVehicleExpanded(true, { persist: false });
     const box = $('vehicle-reason');
     box.textContent = reason ? reasonText(reason) : '';
     box.hidden = !reason || (!hard && reason === dismissedReason);
@@ -300,12 +304,6 @@
   function toggleVehicleDetails() {
     if (vehExpanded) {
       const reason = vehicleAttentionReason();
-      if (reason === 'consumption' || reason === 'litres') { // keep open: required value still invalid
-        $('vehicle-reason').textContent = reasonText(reason);
-        $('vehicle-reason').hidden = false;
-        $(reason).focus();
-        return;
-      }
       dismissedReason = reason; // a warning the user has seen; don't pop open again for it
       $('vehicle-reason').hidden = true;
       setVehicleExpanded(false);
@@ -342,7 +340,10 @@
   }
   function deriveLitres() {
     const res = VC.resolveLitres({ tankL: $('tank').value, levelPct: $('level').value });
-    if (res.value == null) return false;
+    if (res.value == null || !$('tank').validity.valid) {
+      if (veh.origins.litres === 'tank') $('litres').value = '';
+      return false;
+    }
     $('litres').value = Math.max(1, res.value);
     veh.origins.litres = 'tank';
     return true;
@@ -479,10 +480,11 @@
   }
 
   function clearVehicle() {
+    vehicleLookupRevision++;
     veh.vehicle = null;
     veh.lab = null;
     veh.origins.fuel = null;
-    if (veh.origins.consumption !== 'manual') veh.origins.consumption = null;
+    if (veh.origins.consumption !== 'manual') { veh.origins.consumption = null; $('consumption').value = ''; }
     if (veh.origins.tank === 'weight' || veh.origins.tank === 'range') veh.origins.tank = null;
     $('remember-car').checked = false;
     try { localStorage.removeItem(CAR_KEY); } catch { /* private mode */ }
@@ -491,6 +493,8 @@
     dismissedReason = null;
     renderVehicleCard();
     renderOrigins();
+    savePrefs();
+    scheduleAutoCompare();
   }
 
   function saveRememberedCar() {
@@ -523,11 +527,13 @@
       return;
     }
     const btn = $('kenteken-lookup');
+    const revision = ++vehicleLookupRevision;
     btn.disabled = true;
     btn.textContent = t('Looking up…', 'Zoeken…');
     try {
       const res = await fetch(`/api/kenteken?k=${encodeURIComponent(k)}`);
       const body = await res.json().catch(() => ({}));
+      if (revision !== vehicleLookupRevision) return;
       if (!res.ok) {
         const msg = {
           invalid: t('That is not a valid Dutch licence plate.', 'Dat is geen geldig Nederlands kenteken.'),
@@ -549,6 +555,7 @@
       savePrefs();
       if (body.vehicle.fuelSupport === 'ok') scheduleAutoCompare(0);
     } catch (err) {
+      if (revision !== vehicleLookupRevision) return;
       errBox.textContent = t(`RDW lookup failed: ${err.message}. Fill in your car yourself.`, `Opzoeken bij de RDW mislukt: ${err.message}. Vul je auto zelf in.`);
       errBox.hidden = false;
       lookupFailed = true;
@@ -564,6 +571,7 @@
     $('kenteken-lookup').addEventListener('click', lookupKenteken);
     $('kenteken').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupKenteken(); } });
     $('kenteken').addEventListener('input', (e) => {
+      vehicleLookupRevision++;
       $('kenteken-error').hidden = true;
       const el = e.target;
       const pos = el.selectionStart;
@@ -577,7 +585,7 @@
       }
     });
     $('fuel').addEventListener('change', () => { if (veh.origins.fuel) veh.origins.fuel = 'manual'; renderOrigins(); });
-    $('consumption').addEventListener('input', () => { if (veh.origins.consumption) veh.origins.consumption = 'manual'; renderOrigins(); });
+    $('consumption').addEventListener('input', () => { veh.origins.consumption = $('consumption').value ? 'manual' : null; renderOrigins(); });
     for (const id of ['uplift', 'uplift-pct']) {
       $(id).addEventListener(id === 'uplift' ? 'change' : 'input', () => { applyLabConsumption(); renderOrigins(); });
     }
@@ -606,9 +614,11 @@
     const prefs = loadPrefs();
     renderFuelOptions();
     $('fuel').value = prefs.fuel || 'e10';
-    $('consumption').value = prefs.consumption || cfg.defaults.consumption;
+    $('consumption').value = prefs.consumptionOrigin ? prefs.consumption : '';
+    veh.origins.consumption = prefs.consumptionOrigin || null;
     setConsumptionUnit(prefs.consUnit || 'l100');
-    $('litres').value = prefs.litres || cfg.defaults.litres;
+    $('litres').value = prefs.litresOrigin ? prefs.litres : '';
+    veh.origins.litres = prefs.litresOrigin || null;
     $('radius').value = prefs.radius || cfg.defaults.radiusKm;
     $('perkm').value = prefs.perkm || '';
     setPriority(prefs.priority || 'balanced', prefs);
@@ -620,6 +630,16 @@
     if (prefs.level != null && prefs.level !== '') $('level').value = prefs.level;
     if (prefs.litresOrigin === 'tank' && prefs.tank) veh.origins.litres = 'tank';
     if (vcfg.kentekenLookup) restoreRememberedCar();
+    if (veh.vehicle) {
+      if (!prefs.consumptionOrigin && veh.origins.consumption) {
+        if (veh.origins.consumption === 'manual') setConsumptionL100(prefs.consumption || '');
+        else applyLabConsumption();
+      }
+      if (!$('litres').value && veh.origins.litres === 'tank') {
+        if (!$('tank').value && veh.vehicle.tank) $('tank').value = veh.vehicle.tank.value || '';
+        deriveLitres();
+      }
+    }
     if (prefs.tank && !veh.origins.tank) veh.origins.tank = veh.vehicle && veh.vehicle.tank && Number(prefs.tank) === veh.vehicle.tank.value ? veh.vehicle.tank.source : 'manual';
     setVehicleExpanded(vehExpanded, { persist: false });
     renderOrigins();
@@ -651,7 +671,7 @@
       else if (state[which].auto) setPoint(which, { ...state[which], label: state[which].auto() }, { quiet: true });
     }
     // Server-written texts (recommendation, warnings, assumptions) come in the requested language: fetch again.
-    if (state.lastData) runCompare({ auto: true, keepView: true });
+    scheduleAutoCompare(0);
   }
 
   // ------------------------------------------------------------ time vs savings preference
@@ -752,6 +772,7 @@
 
   // ------------------------------------------------------------ location
   function setPoint(which, p, { quiet = false } = {}) {
+    pointRevision[which]++;
     state[which] = p;
     const chosen = $(which === 'start' ? 'start-chosen' : 'dest-chosen');
     if (p) {
@@ -765,7 +786,7 @@
     drawPins();
     if (quiet) return;
     if (p && state.map && !state.map.getBounds().contains([p.lat, p.lon])) state.map.panTo([p.lat, p.lon]);
-    scheduleAutoCompare(300);
+    scheduleAutoCompare(400);
   }
 
   const geoSeq = {};
@@ -809,6 +830,7 @@
         setPoint(which, r);
         $(inputId).value = r.label;
         list.hidden = true;
+        $(inputId).focus({ preventScroll: true });
       });
       list.append(el('li', null, b));
     }
@@ -848,8 +870,9 @@
       list.hidden = false;
       return null;
     }
-    if (results.length === 1 || autoPick) {
+    if (autoPick) {
       setPoint(which, results[0]);
+      $(inputId).value = results[0].label;
       return results[0];
     }
     renderSuggestions(inputId, list, which, results, false);
@@ -860,7 +883,9 @@
     let timer;
     let fastTimer;
     $(inputId).addEventListener('input', () => {
-      setPoint(which, null);
+      setPoint(which, null, { quiet: true });
+      updater.invalidate();
+      clearAdvice(null);
       clearTimeout(timer);
       clearTimeout(fastTimer);
       geoSeq[inputId] = (geoSeq[inputId] || 0) + 1;
@@ -869,6 +894,21 @@
       showSearching($(listId), q);
       fastTimer = setTimeout(() => geocodeFast(inputId, listId, which), 120);
       timer = setTimeout(() => geocode(inputId, listId, which).catch(showError), 300);
+    });
+    $(inputId).addEventListener('keydown', (e) => {
+      const buttons = [...$(listId).querySelectorAll('button')];
+      if (e.key === 'ArrowDown' && buttons.length) { e.preventDefault(); buttons[0].focus(); }
+      if (e.key === 'Enter') { e.preventDefault(); geocode(inputId, listId, which, true).catch(showError); }
+      if (e.key === 'Escape') $(listId).hidden = true;
+    });
+    $(listId).addEventListener('keydown', (e) => {
+      const buttons = [...$(listId).querySelectorAll('button')];
+      const i = buttons.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const next = e.key === 'ArrowDown' ? i + 1 : i - 1;
+        if (buttons[next]) buttons[next].focus(); else $(inputId).focus();
+      } else if (e.key === 'Escape') { $(listId).hidden = true; $(inputId).focus(); }
     });
   }
 
@@ -886,6 +926,7 @@
     }
     if (!navigator.geolocation) return gpsMessage(t('Your browser does not support location access.', 'Je browser ondersteunt geen locatiebepaling.'));
     const btn = $('gps');
+    const revision = ++pointRevision.start;
     btn.disabled = true;
     btn.textContent = '📍 …';
     gpsMessage(t('Getting your location…', 'Locatie ophalen…'));
@@ -902,6 +943,7 @@
     const ok = (pos) => {
       if (settled) return;
       done();
+      if (revision !== pointRevision.start) return;
       $('start-q').value = '';
       const acc = Math.round(pos.coords.accuracy);
       const label = () => t(`Your location (±${acc} m)`, `Jouw locatie (±${acc} m)`);
@@ -910,6 +952,7 @@
     const fail = (err) => {
       if (settled) return;
       done();
+      if (revision !== pointRevision.start) return;
       const detail = err && err.message ? ` (${err.message})` : '';
       gpsMessage(err && err.code === 1
         ? t(`Location permission denied${detail}. Allow location for this site in your browser, and for the browser app in your phone settings (precise location on), or type an address.`,
@@ -929,83 +972,95 @@
     const e = $('form-error');
     e.textContent = err && err.message ? err.message : String(err);
     e.hidden = false;
+    $('retry').hidden = false;
   }
 
-  // ------------------------------------------------------------ submit
-  function submit(ev) {
-    ev.preventDefault();
-    return runCompare({ auto: false });
+  function adviceReady() {
+    return AutoCompare.adviceReady({
+      consumption: consumptionL100(), litres: $('litres').value,
+      consumptionOrigin: veh.origins.consumption, litresOrigin: veh.origins.litres,
+      valid: $('consumption').validity.valid && $('litres').validity.valid
+        && (veh.origins.litres !== 'tank' || $('tank').validity.valid)
+        && (!$('uplift').checked || $('uplift-pct').validity.valid),
+      needsRealConsumption: !!(veh.vehicle && veh.vehicle.warnings.includes('phev')),
+    });
   }
 
-  let compareSeq = 0;
-  let autoTimer = null;
-  // Re-run the comparison after a settings change, once results are on screen.
-  function scheduleAutoCompare(delay = 600) {
-    if (!state.lastData || !state.start) return;
-    clearTimeout(autoTimer);
-    autoTimer = setTimeout(() => {
-      if (!$('form').checkValidity()) return; // half-typed / out-of-range value: wait for a valid one
-      runCompare({ auto: true });
-    }, delay);
-  }
-
-  async function runCompare({ auto, keepView = false }) {
-    clearTimeout(autoTimer);
-    $('form-error').hidden = true;
-    if (!auto) {
-      try {
-        if (!state.start && $('start-q').value.trim()) await geocode('start-q', 'start-suggestions', 'start', true);
-        if (!state.start) throw new Error(t('Choose your location first (GPS or type an address).', 'Kies eerst je locatie (GPS of typ een adres).'));
-        if (!state.destination && $('dest-q').value.trim()) await geocode('dest-q', 'dest-suggestions', 'destination', true);
-      } catch (err) {
-        return showError(err);
-      }
-      clearTimeout(autoTimer);
+  function comparisonBody() {
+    if (!state.config || !state.start || (!state.destination && $('dest-q').value.trim())) return null;
+    const advice = adviceReady();
+    const fields = ['radius', ...(advice ? ['perkm', 'per10min', 'minsaving', ...($('baseline-mode').value === 'custom' ? ['baseline-price'] : [])] : [])];
+    if (fields.some((id) => !$(id).validity.valid || (id === 'baseline-price' && !$(id).value))) {
+      showError(t('Check the search radius and cost settings. Correct the invalid value to update.', 'Controleer de zoekstraal en kosteninstellingen. Corrigeer de ongeldige waarde om bij te werken.'));
+      return null;
     }
-    savePrefs();
-    const body = {
+    return {
       start: state.start,
       destination: state.destination,
       fuel: $('fuel').value,
-      consumption: consumptionL100(),
-      litres: $('litres').value,
+      advice,
+      ...(advice ? { consumption: consumptionL100(), litres: $('litres').value } : {}),
       radiusKm: $('radius').value,
-      perKmCost: $('perkm').value,
-      timeValuePerHour: $('per10min').value === '' ? '' : Number($('per10min').value) * 6,
-      minSaving: $('minsaving').value,
-      baseline: $('baseline-mode').value === 'custom' ? { mode: 'custom', price: $('baseline-price').value } : { mode: 'nearest' },
+      ...(advice ? {
+        perKmCost: $('perkm').value,
+        timeValuePerHour: $('per10min').value === '' ? '' : Number($('per10min').value) * 6,
+        minSaving: $('minsaving').value,
+        baseline: $('baseline-mode').value === 'custom' ? { mode: 'custom', price: $('baseline-price').value } : { mode: 'nearest' },
+      } : {}),
       lang,
     };
-    const seq = ++compareSeq;
-    $('submit').disabled = true;
-    if (auto) {
-      $('results').classList.add('updating');
-      $('updating').hidden = false;
-    } else {
-      $('empty').hidden = true;
+  }
+
+  function clearAdvice(body) {
+    const data = state.lastData;
+    if (!data) return;
+    if (!body || !sameTrip(data.input, { ...body, radiusKm: Number(body.radiusKm) }) || data.input.fuel.id !== body.fuel) {
       $('results').hidden = true;
-      $('loading').hidden = false;
+      $('empty').hidden = false;
+      if (state.layer) state.layer.clearLayers();
+      return;
     }
-    try {
-      const res = await fetch('/api/compare', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!data.input.advice) return;
+    const preview = {
+      ...data, input: { ...data.input, advice: false }, baseline: null, recommendation: null,
+      pendingAdvice: body.advice,
+      assumptions: [t('Savings advice is unavailable while the inputs are being updated.', 'Besparingsadvies is niet beschikbaar terwijl de invoer wordt bijgewerkt.')],
+      results: data.results.map(({ saving, cashSaving, total, fuelCost, detourCost, timeCost, breakEven, isBaseline, extraKm, extraMin, ...s }) => s)
+        .sort((a, b) => (a.route?.detourKm ?? Infinity) - (b.route?.detourKm ?? Infinity) || a.id.localeCompare(b.id)),
+    };
+    render(preview, { keepView: true });
+  }
+
+  const updater = AutoCompare.create({
+    getBody: comparisonBody,
+    onPending: clearAdvice,
+    request: async (body, signal) => {
+      const res = await fetch('/api/compare', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
       const json = await res.json();
-      if (seq !== compareSeq) return; // a newer request superseded this one
       if (!res.ok) throw new Error(json.error || t('Comparison failed', 'Vergelijken mislukt'));
-      const samePlaces = auto && state.lastData && sameTrip(state.lastData.input, json.input);
+      return json;
+    },
+    onResult: (json) => {
+      $('form-error').hidden = true;
+      $('retry').hidden = true;
+      $('empty').hidden = true;
       state.lastData = json;
-      render(json, { keepView: samePlaces || keepView });
-    } catch (err) {
-      if (seq !== compareSeq) return;
-      showError(err);
-      if (!auto) $('empty').hidden = false;
-    } finally {
-      if (seq === compareSeq) {
-        $('submit').disabled = false;
-        $('loading').hidden = true;
-        $('updating').hidden = true;
-        $('results').classList.remove('updating');
-      }
-    }
+      render(json, { keepView: !!state.hasRendered });
+      state.hasRendered = true;
+    },
+    onError: showError,
+    onStatus: (status) => {
+      const busy = status !== 'idle';
+      $('loading').hidden = !busy || !$('results').hidden;
+      $('updating').hidden = !busy || $('results').hidden;
+      $('results').setAttribute('aria-busy', String(busy));
+    },
+  });
+
+  function scheduleAutoCompare(delay = 400) {
+    if (!state.config) return;
+    savePrefs();
+    updater.schedule(delay);
   }
 
   function sameTrip(a, b) {
@@ -1015,7 +1070,18 @@
 
   // ------------------------------------------------------------ render
   function render(data, { keepView = false } = {}) {
+    const active = document.activeElement;
+    const href = active.getAttribute && active.getAttribute('href');
+    const label = active.getAttribute && active.getAttribute('aria-label');
+    const activeStation = active.closest && active.closest('li.station');
+    const stationId = activeStation && activeStation.dataset.stationId;
+    const focusIndex = activeStation ? [...activeStation.querySelectorAll('a, button, [tabindex]')].indexOf(active) : -1;
+    const panel = document.querySelector('.results-panel');
+    const scroll = panel.scrollTop;
+    const pageScroll = window.scrollY;
+    const selectedId = state.lastRendered && state.selectedStation != null ? state.lastRendered.results[state.selectedStation]?.id : null;
     $('results').hidden = false;
+    setTip($('station-sort-tip'), data.input.advice ? t('Sorted by net saving.', 'Gesorteerd op nettobesparing.') : t('Sorted by detour distance. No savings ranking yet.', 'Gesorteerd op omwegafstand. Nog geen rangschikking op besparing.'));
     renderRecommendation(data);
     renderWarnings(data);
     renderSummary(data);
@@ -1023,11 +1089,27 @@
     renderAssumptions(data);
     renderSources(data);
     renderMap(data, keepView);
+    state.lastRendered = data;
+    const selected = data.results.findIndex((s) => s.id === selectedId);
+    if (selected >= 0) selectStation(selected, { flash: false });
+    if (stationId && !active.isConnected) {
+      const li = [...$('station-list').children].find((n) => n.dataset.stationId === stationId);
+      const target = li && li.querySelectorAll('a, button, [tabindex]')[focusIndex];
+      if (target) target.focus({ preventScroll: true });
+    } else if (!active.isConnected && (href || label)) {
+      const target = [...$('results').querySelectorAll('a, button, [tabindex]')].find((n) =>
+        href ? n.getAttribute('href') === href : n.getAttribute('aria-label') === label);
+      if (target) target.focus({ preventScroll: true });
+    }
+    panel.scrollTop = scroll;
+    if (window.scrollY !== pageScroll) window.scrollTo({ top: pageScroll, behavior: 'instant' });
   }
 
   function renderRecommendation(data) {
     const r = data.recommendation;
     const box = $('recommendation');
+    box.hidden = !r;
+    if (!r) { box.replaceChildren(); return; }
     box.className = `recommendation ${r.level}`;
     const best = data.results.find((s) => s.id === r.stationId);
     const conf = CONFIDENCE_LABEL()[r.confidence];
@@ -1050,6 +1132,12 @@
   function renderSummary(data) {
     const s = $('summary');
     s.replaceChildren();
+    if (!data.input.advice) {
+      s.textContent = data.pendingAdvice ? t('Updating savings advice. Stations are temporarily ordered by detour distance.',
+        'Besparingsadvies bijwerken. Stations staan tijdelijk op volgorde van omwegafstand.') : t('Stations and prices for the selected fuel. Enter valid consumption and litres to buy for savings advice. Ordered by detour distance.',
+        'Stations en prijzen voor de gekozen brandstof. Vul geldig verbruik en liters tanken in voor besparingsadvies. Op volgorde van omwegafstand.');
+      return;
+    }
     if (!data.baseline) return;
     const route = data.input.mode === 'route';
     const modeBtn = el('button', { type: 'button', class: 'linkish', text: route ? t('change destination', 'bestemming wijzigen') : t('add a destination', 'voeg een bestemming toe') });
@@ -1091,6 +1179,7 @@
     list.replaceChildren();
     const recId = data.recommendation && data.recommendation.stationId;
     data.results.forEach((s, i) => {
+      const advice = data.input.advice;
       const cls = ['station', s.id === recId ? 'best' : '', s.isBaseline ? 'baseline' : ''].join(' ');
       const timed = data.input.timeValuePerHour > 0;
       const cash = s.cashSaving ?? s.saving;
@@ -1098,22 +1187,24 @@
       const savingText = s.isBaseline ? t('baseline', 'vergelijkingspunt') : `${cash >= 0 ? '+' : '−'}${eur(Math.abs(cash))}`;
       const savingKey = s.isBaseline ? t('reference', 'referentie') : !timed || cash <= 0.005 ? t('net saving', 'nettobesparing')
         : s.saving >= 0 ? t(`${eur(s.saving)} after extra time`, `${eur(s.saving)} na extra tijd`) : t('not worth the extra time', 'extra tijd niet waard');
-      const p = s.price;
+      const p = s.price || { kind: 'unavailable' };
       const estNote = p.kind === 'legal-maximum' ? t('The actual price is usually lower.', 'De echte prijs is meestal lager.')
         : p.kind === 'national-average' ? t('The actual price can differ by ±20 ct/L.', 'De echte prijs kan ±20 ct/L afwijken.') : '';
-      list.append(el('li', { class: cls, id: `st-${i}` },
+      list.append(el('li', { class: cls, id: `st-${i}`, 'data-station-id': s.id },
         el('div', { class: 'station-head' },
           el('div', null,
             el('div', { class: 'station-name' }, el('span', { class: `flag ${s.country}`, text: s.country }), s.name),
             el('div', { class: 'station-addr', text: [s.brand && s.brand !== s.name ? s.brand : null, s.address].filter(Boolean).join(' · ') || ' ' })),
-          el('div', { class: 'saving' }, el('div', { class: `v ${savingCls}`, text: savingText }), el('div', { class: 'k', text: savingKey }))),
+          advice ? el('div', { class: 'saving' }, el('div', { class: `v ${savingCls}`, text: savingText }), el('div', { class: 'k', text: savingKey })) : null),
         el('div', { class: 'facts' },
-          el('span', null, el('b', { text: eurL(p.price) }), ' ', el('span', { class: `tag ${p.kind}${p.estimate ? ' estimate' : ''} ${p.quality || ''}`, text: priceLabel(p) })),
-          el('span', null, t('Detour ', 'Omweg '), el('b', { text: `${km(s.route.detourKm)} km` }), s.route.detourMin ? ` (~${s.route.detourMin} min)` : ''),
-          el('span', null, t('Extra vs baseline ', 'Extra t.o.v. vergelijkingspunt '), el('b', { text: `${s.extraKm > 0 ? '+' : ''}${km(s.extraKm)} km` }), s.extraMin ? ` / ${s.extraMin > 0 ? '+' : ''}${s.extraMin} min` : '', timed && s.extraMin > 0 && !s.isBaseline ? t(` (must save ≥ ${eur(s.extraMin * data.input.timeValuePerHour / 60)})`, ` (moet ≥ ${eur(s.extraMin * data.input.timeValuePerHour / 60)} besparen)`) : ''),
-          el('span', null, t('Total ', 'Totaal '), el('b', { text: eur(s.total) }), t(` (fuel ${eur(s.fuelCost)} + driving ${eur(s.detourCost)})`, ` (brandstof ${eur(s.fuelCost)} + rijden ${eur(s.detourCost)})`)),
-          el('span', null, t('Break-even: ', 'Omslagpunt: '), el('b', { text: breakEvenText(s.breakEven) }))),
-        el('div', { class: 'provenance', text: `${s.localFuelName}${p.product ? t(` (listed as "${p.product}")`, ` (vermeld als "${p.product}")`) : ''} · ${p.source} · ${priceFreshness(p)}${s.fuelAvailability === 'unknown' ? t(' · fuel availability not confirmed in OSM', ' · beschikbaarheid brandstof niet bevestigd in OSM') : ''}` }),
+          s.price ? el('span', null, el('b', { text: eurL(p.price) }), ' ', el('span', { class: `tag ${p.kind}${p.estimate ? ' estimate' : ''} ${p.quality || ''}`, text: priceLabel(p) })) : el('span', { text: t('Price unavailable', 'Prijs niet beschikbaar') }),
+          s.route ? el('span', null, t('Detour ', 'Omweg '), el('b', { text: `${km(s.route.detourKm)} km` }), s.route.detourMin ? ` (~${s.route.detourMin} min)` : '') : el('span', { text: t('Route unavailable', 'Route niet beschikbaar') }),
+          advice ? [
+            el('span', null, t('Extra vs baseline ', 'Extra t.o.v. vergelijkingspunt '), el('b', { text: `${s.extraKm > 0 ? '+' : ''}${km(s.extraKm)} km` }), s.extraMin ? ` / ${s.extraMin > 0 ? '+' : ''}${s.extraMin} min` : '', timed && s.extraMin > 0 && !s.isBaseline ? t(` (must save ≥ ${eur(s.extraMin * data.input.timeValuePerHour / 60)})`, ` (moet ≥ ${eur(s.extraMin * data.input.timeValuePerHour / 60)} besparen)`) : ''),
+            el('span', null, t('Total ', 'Totaal '), el('b', { text: eur(s.total) }), t(` (fuel ${eur(s.fuelCost)} + driving ${eur(s.detourCost)})`, ` (brandstof ${eur(s.fuelCost)} + rijden ${eur(s.detourCost)})`)),
+            el('span', null, t('Break-even: ', 'Omslagpunt: '), el('b', { text: breakEvenText(s.breakEven) })),
+          ] : null),
+        el('div', { class: 'provenance', text: `${s.localFuelName}${p.product ? t(` (listed as "${p.product}")`, ` (vermeld als "${p.product}")`) : ''}${s.price ? ` · ${p.source} · ${priceFreshness(p)}` : ''}${s.fuelAvailability === 'unknown' ? t(' · fuel availability not confirmed in OSM', ' · beschikbaarheid brandstof niet bevestigd in OSM') : ''}` }),
         p.estimate ? el('div', { class: 'provenance estimate-note' }, t("Not this pump's price", 'Niet de prijs van deze pomp'),
           [p.fallbackReason, estNote].filter(Boolean).length ? [' ', infoTip([p.fallbackReason, estNote].filter(Boolean).join(' - '))] : null) : null,
         navLinks(s, false)));
@@ -1134,7 +1225,7 @@
       `Verzoeken: ${x.requestsLastHour}/${x.hourlyBudget} afgelopen uur, ${x.requestsLast24h}/${x.dailyBudget} afgelopen 24 u. `);
     const pausedUntil = (x) => (x.backoffUntil ? t(`Requests paused until ${when(x.backoffUntil)}. `, `Verzoeken gepauzeerd tot ${when(x.backoffUntil)}. `) : '');
     if (cb !== undefined && !(cb && cb.reason === 'not-acknowledged')) {
-      const quoted = data.results.filter((r) => r.price.provider === 'carbu').length;
+      const quoted = data.results.filter((r) => r.price?.provider === 'carbu').length;
       const be = data.results.filter((r) => r.country === 'BE').length;
       let text;
       if (!cb || cb.ok === false) {
@@ -1157,7 +1248,7 @@
     }
     const an = data.sources.prices && data.sources.prices.anwb;
     if (an !== undefined) {
-      const quoted = data.results.filter((r) => r.price.provider === 'anwb').length;
+      const quoted = data.results.filter((r) => r.price?.provider === 'anwb').length;
       let text;
       if (!an || an.ok === false) {
         const reason = an && an.reason;
@@ -1169,7 +1260,7 @@
             `ANWB geblokkeerd (${code}) sinds ${since}; alle ANWB-verzoeken zijn gestopt. Omzeil dit niet; neem contact op met de ANWB. `)
           : t(`ANWB Onderweg unavailable${an && an.error ? ` (${an.error})` : ''}. `, `ANWB Onderweg niet beschikbaar${an && an.error ? ` (${an.error})` : ''}. `);
       } else {
-        const origins = [...new Set(data.results.filter((r) => r.price.provider === 'anwb' && r.price.dataOrigin).map((r) => r.price.dataOrigin))];
+        const origins = [...new Set(data.results.filter((r) => r.price?.provider === 'anwb' && r.price.dataOrigin).map((r) => r.price.dataOrigin))];
         const orig = origins.length ? ` (${t('data', 'gegevens')}: ${origins.join(' / ')})` : '';
         text = t(`ANWB Onderweg${orig}: ${quoted} of ${data.results.length} stations quoted. Prices are retrieved and cached per area for ${an.cacheTtlH} h; ANWB does not report when a station set its price. `,
           `ANWB Onderweg${orig}: ${quoted} van ${data.results.length} stations met prijs. Prijzen worden per gebied opgehaald en ${an.cacheTtlH} u bewaard; de ANWB meldt niet wanneer een station zijn prijs heeft ingesteld. `) +
@@ -1182,7 +1273,7 @@
     }
     const dl = data.sources.prices && data.sources.prices.directlease;
     if (dl !== undefined && !(dl && dl.reason === 'not-acknowledged')) {
-      const quoted = data.results.filter((r) => r.price.provider === 'directlease').length;
+      const quoted = data.results.filter((r) => r.price?.provider === 'directlease').length;
       const code = (dl && dl.blocked && dl.blocked.httpStatus) || 403;
       box.append(el('p', { class: 'source-row' }, el('b', { text: t('Station prices: ', 'Stationsprijzen: ') }),
         !dl || dl.ok === false
@@ -1203,8 +1294,8 @@
     }
     const st = data.sources.stations;
     box.append(el('p', { class: 'source-row' }, el('b', { text: 'Stations: ' }),
-      st.provider === 'anwb' ? t(`ANWB Onderweg (${st.endpoint}); oldest area retrieved ${fmtAge(st.fetchedAt)}. Stations outside NL/BE only appear with a station quote.`,
-          `ANWB Onderweg (${st.endpoint}); oudste gebied opgehaald ${fmtAge(st.fetchedAt)}. Stations buiten NL/BE verschijnen alleen met een stationsprijs.`)
+      st.provider === 'anwb' ? t(`ANWB Onderweg (${st.endpoint}); oldest area retrieved ${fmtAge(st.fetchedAt)}. No country estimates are used outside NL/BE.`,
+          `ANWB Onderweg (${st.endpoint}); oudste gebied opgehaald ${fmtAge(st.fetchedAt)}. Buiten NL/BE worden geen landelijke schattingen gebruikt.`)
           : t(`OpenStreetMap via Overpass (${st.endpoint}); station list ${fmtAge(st.fetchedAt)}. © OpenStreetMap contributors, ODbL.`,
             `OpenStreetMap via Overpass (${st.endpoint}); stationslijst ${fmtAge(st.fetchedAt)}. © OpenStreetMap-bijdragers, ODbL.`)));
     if (data.sources.routing) {
@@ -1216,7 +1307,7 @@
   }
 
   // Highlight one station in both the list and on the map.
-  function selectStation(i, { scroll = false, pan = false } = {}) {
+  function selectStation(i, { scroll = false, pan = false, flash = true } = {}) {
     const prev = state.selectedStation;
     if (prev != null) {
       const pli = $(`st-${prev}`);
@@ -1229,9 +1320,11 @@
     if (li) {
       li.classList.add('selected');
       li.setAttribute('aria-current', 'true');
-      li.classList.remove('flash');
-      void li.offsetWidth; // restart the flash animation
-      li.classList.add('flash');
+      if (flash) {
+        li.classList.remove('flash');
+        void li.offsetWidth; // restart the flash animation
+        li.classList.add('flash');
+      }
       if (scroll) li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
     const m = state.stationMarkers && state.stationMarkers[i];
@@ -1269,6 +1362,8 @@
 
   function renderMap(data, keepView = false) {
     if (!state.map) return;
+    const openId = state.lastRendered && state.stationMarkers
+      ? state.lastRendered.results[state.stationMarkers.findIndex((m) => m.isPopupOpen())]?.id : null;
     state.layer.clearLayers();
     const pts = [];
     const start = data.input.start;
@@ -1285,27 +1380,30 @@
       const base = { radius: rec ? 10 : 7, color: rec ? '#0f6b4f' : '#333', weight: rec ? 3 : 1, fillColor: color, fillOpacity: 0.9 };
       const m = L.circleMarker([s.lat, s.lon], base);
       m.baseStyle = base;
-      const popup = el('div', null, el('b', { text: `${s.country} · ${s.name}` }), el('br'), `${eurL(s.price.price)} · ${t('saving', 'besparing')} ${eur(s.cashSaving ?? s.saving)}`);
-      if (s.price.estimate) popup.append(el('br'), el('i', { text: t('estimated price', 'geschatte prijs') }));
-      m.bindPopup(popup);
+      const price = s.price ? eurL(s.price.price) : t('Price unavailable', 'Prijs niet beschikbaar');
+      const popup = el('div', null, el('b', { text: `${s.country} · ${s.name}` }), el('br'), price,
+        data.input.advice ? ` · ${t('saving', 'besparing')} ${eur(s.cashSaving ?? s.saving)}` : null);
+      if (s.price?.estimate) popup.append(el('br'), el('i', { text: t('estimated price', 'geschatte prijs') }));
+      m.bindPopup(popup, { autoPan: !keepView });
       const cs = s.cashSaving ?? s.saving;
-      const delta = s.isBaseline ? { cls: 'base', text: t('nearest · reference', 'dichtstbij · referentie') }
+      const delta = !data.input.advice ? { cls: 'base', text: '' } : s.isBaseline ? { cls: 'base', text: t('nearest · reference', 'dichtstbij · referentie') }
         : cs > 0.005 ? { cls: 'pos', text: t(`saves ${eur(cs)}`, `bespaart ${eur(cs)}`) }
           : cs < -0.005 ? { cls: 'neg', text: t(`${eur(-cs)} more`, `${eur(-cs)} duurder`) } : { cls: 'base', text: t('same cost', 'even duur') };
       const tip = el('div', { class: 'st-tip' },
         el('div', { class: 'st-tip-head' }, el('span', { class: `flag ${s.country}`, text: s.country }), el('span', { class: 'st-tip-name', text: s.name })),
         s.address ? el('div', { class: 'st-tip-addr', text: s.address }) : null,
         el('div', { class: 'st-tip-row' },
-          el('span', { class: 'st-tip-price', text: eurL(s.price.price) }),
+          el('span', { class: 'st-tip-price', text: price }),
           el('span', { class: `st-tip-delta ${delta.cls}`, text: delta.text })),
-        s.price.estimate ? el('div', { class: 'st-tip-est', text: t('Estimated price, not this pump', 'Geschatte prijs, niet van deze pomp') }) : null,
-        el('div', { class: 'st-tip-meta', text: `${km(s.route.detourKm)} km ${t('detour', 'omweg')}${s.route.detourMin ? ` · ~${s.route.detourMin} min` : ''}` }));
+        s.price?.estimate ? el('div', { class: 'st-tip-est', text: t('Estimated price, not this pump', 'Geschatte prijs, niet van deze pomp') }) : null,
+        s.route ? el('div', { class: 'st-tip-meta', text: `${km(s.route.detourKm)} km ${t('detour', 'omweg')}${s.route.detourMin ? ` · ~${s.route.detourMin} min` : ''}` }) : null);
       m.bindTooltip(tip, { direction: 'top', offset: [0, -10], opacity: 1, className: 'st-tooltip' });
       m.on('tooltipopen', (e) => placeTooltip(m, e.tooltip));
       m.on('popupopen', () => m.closeTooltip());
       m.on('click', () => selectStation(i, { scroll: true }));
       m.addTo(state.layer);
       state.stationMarkers.push(m);
+      if (s.id === openId) m.openPopup();
       pts.push([s.lat, s.lon]);
     });
     state.selectedStation = null;
@@ -1317,13 +1415,19 @@
   }
 
   // ------------------------------------------------------------ wire up
-  $('form').addEventListener('submit', submit);
+  $('form').addEventListener('submit', (ev) => ev.preventDefault());
+  $('retry').addEventListener('click', () => {
+    if (!state.config) { init().catch(showError); return; }
+    if (!state.start && $('start-q').value.trim()) geocode('start-q', 'start-suggestions', 'start', true).catch(showError);
+    else if (!state.destination && $('dest-q').value.trim()) geocode('dest-q', 'dest-suggestions', 'destination', true).catch(showError);
+    else updater.retry();
+  });
   // Native validation can't focus fields inside the collapsed panel: open it first.
   $('form').addEventListener('invalid', (ev) => {
     if ($('vehicle-details').contains(ev.target) && !vehExpanded) setVehicleExpanded(true, { persist: false });
   }, true);
   $('gps').addEventListener('click', useGps);
-  for (const b of document.querySelectorAll('#cons-toggle button')) b.addEventListener('click', () => setConsumptionUnit(b.dataset.unit));
+  for (const b of document.querySelectorAll('#cons-toggle button')) b.addEventListener('click', () => { setConsumptionUnit(b.dataset.unit); scheduleAutoCompare(); });
   $('consumption').addEventListener('input', updateConsumptionHint);
   // Open navigation links via window.open: some embedded/in-app browsers ignore target=_blank anchors.
   // With 'noopener' the return value is always null, so it cannot be used to detect blocking; never fall back
@@ -1350,7 +1454,7 @@
   debounceGeocode('dest-q', 'dest-suggestions', 'destination');
   // Settings changes refresh the results automatically (address fields update via their suggestions / pins).
   const isAddress = (t) => t && (t.id === 'start-q' || t.id === 'dest-q' || t.id === 'kenteken' || t.id === 'remember-car');
-  $('form').addEventListener('input', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(e.target.tagName === 'SELECT' ? 0 : 700); });
-  $('form').addEventListener('change', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(e.target.tagName === 'SELECT' ? 0 : 300); });
+  $('form').addEventListener('input', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(); });
+  $('form').addEventListener('change', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(); });
   init().catch((err) => showError(t(`Could not load app configuration: ${err.message}`, `Kon de app-configuratie niet laden: ${err.message}`)));
 })();
