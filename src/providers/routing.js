@@ -41,29 +41,45 @@ function makeOsrmRouter(config, http, cache) {
     id: 'osrm',
     label: `OSRM (${new URL(config.osrmUrl).host})`,
     async distances({ start, destination, stations }) {
-      const points = [start, ...(destination ? [destination] : []), ...stations];
-      const coords = points.map((p) => `${p.lon.toFixed(5)},${p.lat.toFixed(5)}`).join(';');
-      const url = `${config.osrmUrl}/table/v1/driving/${coords}?annotations=distance,duration`;
-      const json = await cache.wrap(`osrm:${coords}`, 6 * 3600, () => http.json(url));
-      if (json.code !== 'Ok' || !Array.isArray(json.distances)) throw new Error(`OSRM error: ${json.code || 'unknown'}`);
-      const D = json.distances;
-      const T = json.durations || [];
-      const off = destination ? 2 : 1;
-      const endIdx = destination ? 1 : 0;
-      const km = (v) => (v === null || v === undefined ? NaN : v / 1000);
-      const min = (v) => (v === null || v === undefined ? NaN : v / 60);
-      return {
-        mode: 'road',
-        provider: 'osrm',
-        toStation: stations.map((_, i) => km(D[0][off + i])),
-        fromStation: stations.map((_, i) => km(D[off + i][endIdx])),
-        baseTripKm: destination ? km(D[0][1]) : 0,
-        toStationMin: stations.map((_, i) => min(T[0] && T[0][off + i])),
-        fromStationMin: stations.map((_, i) => min(T[off + i] && T[off + i][endIdx])),
-        baseTripMin: destination ? min(T[0] && T[0][1]) : 0,
+      if (!stations.length && destination) return table(start, destination, stations);
+      const result = {
+        mode: 'road', provider: 'osrm', toStation: [], fromStation: [],
+        toStationMin: [], fromStationMin: [], baseTripKm: 0, baseTripMin: 0,
       };
+      // Keep each public OSRM table small, even for a large search radius.
+      for (let offset = 0; offset < stations.length; offset += 40) {
+        const batch = await table(start, destination, stations.slice(offset, offset + 40));
+        for (const key of ['toStation', 'fromStation', 'toStationMin', 'fromStationMin']) result[key].push(...batch[key]);
+        result.baseTripKm = batch.baseTripKm;
+        result.baseTripMin = batch.baseTripMin;
+      }
+      return result;
     },
   };
+
+  async function table(start, destination, stations) {
+    const points = [start, ...(destination ? [destination] : []), ...stations];
+    const coords = points.map((p) => `${p.lon.toFixed(5)},${p.lat.toFixed(5)}`).join(';');
+    const url = `${config.osrmUrl}/table/v1/driving/${coords}?annotations=distance,duration`;
+    const json = await cache.wrap(`osrm:${coords}`, 6 * 3600, () => http.json(url));
+    if (json.code !== 'Ok' || !Array.isArray(json.distances)) throw new Error(`OSRM error: ${json.code || 'unknown'}`);
+    const D = json.distances;
+    const T = json.durations || [];
+    const off = destination ? 2 : 1;
+    const endIdx = destination ? 1 : 0;
+    const km = (v) => (v === null || v === undefined ? NaN : v / 1000);
+    const min = (v) => (v === null || v === undefined ? NaN : v / 60);
+    return {
+      mode: 'road',
+      provider: 'osrm',
+      toStation: stations.map((_, i) => km(D[0][off + i])),
+      fromStation: stations.map((_, i) => km(D[off + i][endIdx])),
+      baseTripKm: destination ? km(D[0][1]) : 0,
+      toStationMin: stations.map((_, i) => min(T[0] && T[0][off + i])),
+      fromStationMin: stations.map((_, i) => min(T[off + i] && T[off + i][endIdx])),
+      baseTripMin: destination ? min(T[0] && T[0][1]) : 0,
+    };
+  }
 }
 
 function makeNominatimGeocoder(config, http, cache, throttle) {

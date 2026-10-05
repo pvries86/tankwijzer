@@ -123,6 +123,15 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
     const stations = selectStations(stationResult.stations, {
       start, destination, fuelId: fuel.id, maxPerCountry: config.maxStationsPerCountry, radiusKm: input.radiusKm,
     });
+    if (config.maxStationsPerCountry > 0) {
+      const available = selectStations(stationResult.stations, {
+        start, destination, fuelId: fuel.id, maxPerCountry: 0, radiusKm: input.radiusKm,
+      });
+      const omitted = available.length - stations.length;
+      if (omitted > 0) warnings.push(t(
+        `${omitted} stations within the search radius are not shown: this server limits results to ${config.maxStationsPerCountry} per country (MAX_STATIONS_PER_COUNTRY). Increasing the radius may not add results.`,
+        `${omitted} stations binnen de zoekstraal worden niet getoond: deze server beperkt resultaten tot ${config.maxStationsPerCountry} per land (MAX_STATIONS_PER_COUNTRY). Een grotere zoekstraal levert daardoor mogelijk geen extra resultaten op.`));
+    }
 
     // 2. prices
     const refs = {};
@@ -485,8 +494,13 @@ function assumptions(input, config, routes) {
     a.push(t('Stations are ordered by detour distance, not savings. Enter consumption and litres to buy for savings advice.',
       'Stations staan op volgorde van omwegafstand, niet van besparing. Vul verbruik en liters tanken in voor besparingsadvies.'));
   }
-  a.push(t(`Stations are the ${config.maxStationsPerCountry} closest per country within ${input.radiusKm} km (straight-line pre-selection); with ANWB, stations that list prices for other fuels but not this one are skipped.`,
-    `Stations zijn de ${config.maxStationsPerCountry} dichtstbijzijnde per land binnen ${input.radiusKm} km (hemelsbrede voorselectie); bij ANWB worden stations overgeslagen die wel prijzen voor andere brandstoffen hebben, maar niet voor deze.`));
+  a.push(config.maxStationsPerCountry > 0
+    ? t(`Stations are the ${config.maxStationsPerCountry} closest per country within ${input.radiusKm} km (straight-line pre-selection).`,
+      `Stations zijn de ${config.maxStationsPerCountry} dichtstbijzijnde per land binnen ${input.radiusKm} km (hemelsbrede voorselectie).`)
+    : t(`All eligible stations returned by the sources within ${input.radiusKm} km of your start or route are included, subject to source coverage and request limits.`,
+      `Alle geschikte stations die de bronnen teruggeven binnen ${input.radiusKm} km van je start of route worden meegenomen, voor zover brondekking en verzoeklimieten dat toelaten.`));
+  a.push(t('With ANWB, stations that list prices for other fuels but not the selected fuel are skipped.',
+    'Bij ANWB worden stations overgeslagen die wel prijzen voor andere brandstoffen hebben, maar niet voor de gekozen brandstof.'));
   a.push(t('Prices: a station-specific quote where available (Belgium: CARBU.COM first, with the station\'s price date; otherwise ANWB Onderweg, retrieved at most ~24 h ago, price date not reported); otherwise, for NL/BE only, a country ESTIMATE (NL: CBS national average, BE: FOD legal maximum), marked as such. Stations in other countries enter savings advice only with a station quote.',
     'Prijzen: een eigen stationsprijs waar beschikbaar (België: eerst CARBU.COM, met de prijsdatum van het station; anders ANWB Onderweg, hooguit ~24 u geleden opgehaald, prijsdatum niet gemeld); anders, alleen voor NL/BE, een landelijke SCHATTING (NL: CBS landelijk gemiddelde, BE: FOD wettelijke maximumprijs), als zodanig gemarkeerd. Stations in andere landen tellen alleen mee voor besparingsadvies met een stationsprijs.'));
   if (routes) {

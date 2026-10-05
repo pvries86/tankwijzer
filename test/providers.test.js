@@ -7,7 +7,7 @@ const { parseFodMaxPricePdf, decodePdfString } = require('../src/providers/fodPd
 const { parseCbsRecords } = require('../src/providers/prices');
 const { parseOverpassResponse, buildOverpassQuery, selectStations } = require('../src/providers/stations');
 const { stationFuelAvailability, getFuel } = require('../src/fuels');
-const { parseLatLon, makeHaversineRouter, makePhotonGeocoder, photonLabel } = require('../src/providers/routing');
+const { parseLatLon, makeHaversineRouter, makeOsrmRouter, makePhotonGeocoder, photonLabel } = require('../src/providers/routing');
 const { TtlCache, Throttle } = require('../src/cache');
 
 test('photon geocoder: prefix results, readable labels, country filter, location bias, cached', async () => {
@@ -157,6 +157,62 @@ test('selectStations drops stations outside the search radius (e.g. from whole A
   const route = selectStations([{ id: 'kranenburg', country: 'DE', lat: 51.8074, lon: 5.9624, tags: {} }],
     { start, destination: { lat: 51.82, lon: 6.1 }, fuelId: 'e10', maxPerCountry: 5, radiusKm: 20 });
   assert.equal(route.length, 1, 'kept when it lies near the route');
+});
+
+test('unlimited station selection grows with radius beyond the old 12-per-country cap', () => {
+  const start = { lat: 51, lon: 4 };
+  const stations = ['NL', 'BE'].flatMap((country) => Array.from({ length: 40 }, (_, i) => ({
+    id: `${country}${i}`, country, lat: start.lat + (i + 1) / 111, lon: 4, tags: {},
+  })));
+  const pick = (radiusKm, maxPerCountry = 0) => selectStations(stations, { start, fuelId: 'e10', radiusKm, maxPerCountry });
+  const count = (list, country) => list.filter((s) => s.country === country).length;
+  for (const country of ['NL', 'BE']) {
+    assert.ok(count(pick(30), country) > count(pick(22), country));
+    assert.ok(count(pick(40), country) > count(pick(30), country));
+    assert.equal(count(pick(50), country), 40);
+    assert.equal(count(pick(50, 12), country), 12, 'operator cap still supported');
+  }
+});
+
+test('OSRM batches large searches sequentially, preserves route order and reuses batch cache', async () => {
+  const calls = [];
+  let active = 0;
+  const router = makeOsrmRouter({ osrmUrl: 'https://routing.test' }, { async json(url) {
+    active++;
+    assert.equal(active, 1, 'requests do not run concurrently');
+    calls.push(url);
+    const coords = new URL(url).pathname.split('/').at(-1).split(';');
+    assert.ok(coords.length <= 42);
+    const ids = coords.map((p) => Math.round((Number(p.split(',')[0]) - 4) * 1000));
+    const distances = ids.map((a) => ids.map((b) => a * 10 + b * 100));
+    await new Promise((r) => setTimeout(r, 1));
+    active--;
+    return { code: 'Ok', distances, durations: distances.map((row) => row.map((v) => v / 2)) };
+  } }, new TtlCache());
+  const stations = Array.from({ length: 85 }, (_, i) => ({ lat: 51, lon: 4 + (i + 1) / 1000 }));
+  const start = { lat: 51, lon: 4 };
+  const destination = { lat: 51, lon: 4.1 };
+  const result = await router.distances({ start, destination, stations });
+  assert.equal(calls.length, 3);
+  assert.equal(result.mode, 'road');
+  assert.equal(result.baseTripKm, 10);
+  assert.equal(result.baseTripMin, 10000 / 120);
+  assert.deepEqual(result.toStation, stations.map((_, i) => (i + 1) / 10));
+  assert.deepEqual(result.fromStation, stations.map((_, i) => (10000 + (i + 1) * 10) / 1000));
+  assert.deepEqual(result.toStationMin, stations.map((_, i) => (i + 1) * 100 / 120));
+  assert.deepEqual(result.fromStationMin, stations.map((_, i) => (10000 + (i + 1) * 10) / 120));
+  await router.distances({ start, destination, stations });
+  assert.equal(calls.length, 3);
+  const roundTrip = await router.distances({ start, stations });
+  assert.equal(roundTrip.baseTripKm, 0);
+  assert.deepEqual(roundTrip.fromStation, stations.map((_, i) => (i + 1) / 100));
+  const emptyTrip = await router.distances({ start, destination, stations: [] });
+  assert.equal(emptyTrip.baseTripKm, 10);
+  assert.deepEqual(emptyTrip.toStation, []);
+  const requests = calls.length;
+  const emptyReturn = await router.distances({ start, stations: [] });
+  assert.equal(emptyReturn.baseTripKm, 0);
+  assert.equal(calls.length, requests);
 });
 
 test('parseLatLon', () => {

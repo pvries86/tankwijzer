@@ -89,7 +89,10 @@ function selectStations(stations, { start, destination, fuelId, maxPerCountry, r
       straightKm,
     });
   }
-  const pick = (arr) => arr.sort((a, b) => a.straightKm - b.straightKm).slice(0, maxPerCountry);
+  const pick = (arr) => {
+    arr.sort((a, b) => a.straightKm - b.straightKm);
+    return maxPerCountry > 0 ? arr.slice(0, maxPerCountry) : arr;
+  };
   const order = (c) => (c === 'NL' ? 0 : c === 'BE' ? 1 : 2);
   return Object.keys(byCountry).sort((a, b) => order(a) - order(b) || a.localeCompare(b)).flatMap((c) => pick(byCountry[c]));
 }

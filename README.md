@@ -94,7 +94,11 @@ break-even    = litres at which saving(S) = 0
 - Detour fuel is valued at the price of the station you refuel at.
 - A saving smaller than the minimum saving (default €1) results in "refuel at the nearest station".
 - Not included: tolls, parking, loyalty discounts, card fees, queueing.
-- Stations are pre-selected by straight-line distance (the N closest per country), then routed by road.
+- Stations are filtered by straight-line distance to the start or route, then routed by road.
+  By default all eligible stations returned by the sources within the radius are included. OSRM routes are
+  requested sequentially in batches of at most 40 stations, with each batch cached. Source coverage,
+  fuel availability and provider request budgets can still limit results; partial coverage is warned about.
+  An optional per-country cap is configurable and produces a warning when stations are omitted.
 
 ### Form settings
 
@@ -258,7 +262,7 @@ All settings are environment variables (see `.env.example`). Nothing secret is s
 | `OVERPASS_URLS` | public mirrors | Comma-separated, tried in order |
 | `STATION_CACHE_TTL_S` | `86400` | Station cache |
 | `SEARCH_RADIUS_KM` | `20` | Default radius (UI allows 1–50) |
-| `MAX_STATIONS_PER_COUNTRY` | `12` | Stations routed per country |
+| `MAX_STATIONS_PER_COUNTRY` | `0` | 0 = all eligible stations within the radius; positive = optional cap per country, with a visible warning when reached |
 | `PRICE_PROVIDERS` | `carbu,anwb,directlease,cbs-nl,fod-be` | Order = priority; providers without their ACK stay inactive |
 | `ANWB_PRIVATE_USE_ACK` / `ANWB_PAUSED` | `false` / `false` | Enable ANWB Onderweg / make no ANWB requests |
 | `ANWB_DATA_DIR` | `data/anwb` | Tile cache, request log, `blocked.json` |

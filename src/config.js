@@ -79,7 +79,7 @@ function loadConfig(env = process.env) {
     ]),
     stationCacheTtlS: num(env.STATION_CACHE_TTL_S, 24 * 3600),
     searchRadiusKm: num(env.SEARCH_RADIUS_KM, 20),
-    maxStationsPerCountry: num(env.MAX_STATIONS_PER_COUNTRY, 12),
+    maxStationsPerCountry: num(env.MAX_STATIONS_PER_COUNTRY, 0),
 
     // Order = priority per station: CARBU.COM (BE), ANWB Onderweg, DirectLease (sidecar), then CBS/FOD
     // country ESTIMATES (clearly labelled). Each per-station source only runs when its *_PRIVATE_USE_ACK is set.

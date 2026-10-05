@@ -304,6 +304,30 @@ test('parseInput defaults radius and per-km cost', () => {
   assert.equal(i.litres, 30);
 });
 
+test('default discovery grows beyond 22 km; an operator station cap is explicit', async () => {
+  assert.equal(loadConfig({}).maxStationsPerCountry, 0);
+  const start = { lat: 51, lon: 4 };
+  const candidates = Array.from({ length: 35 }, (_, i) => ({
+    id: `station${i}`, name: `Station ${i}`, country: 'NL', lat: 51 + (i + 1) / 111, lon: 4, tags: {},
+  }));
+  const deps = { ...liveDeps(), stationProvider: { async find() { return { stations: candidates, source: { provider: 'stub' } }; } } };
+  await withApp(deps, {}, async (base) => {
+    const body = { start, fuel: 'e10', advice: false };
+    const small = await (await post(base, { ...body, radiusKm: 22 })).json();
+    const large = await (await post(base, { ...body, radiusKm: 35 })).json();
+    assert.ok(small.results.length > 12);
+    assert.ok(large.results.length > small.results.length);
+    assert.ok(large.assumptions.some((a) => /All eligible stations/.test(a)));
+    assert.ok(!large.warnings.some((a) => /MAX_STATIONS_PER_COUNTRY/.test(a)));
+  });
+  await withApp(deps, { maxStationsPerCountry: 12 }, async (base) => {
+    const d = await (await post(base, { start, fuel: 'e10', advice: false, radiusKm: 35, lang: 'nl' })).json();
+    assert.equal(d.results.length, 12);
+    assert.ok(d.warnings.some((a) => /MAX_STATIONS_PER_COUNTRY/.test(a)));
+    assert.ok(d.assumptions.some((a) => /12 dichtstbijzijnde/.test(a)));
+  });
+});
+
 test('parseInput: time value and minimum saving defaults and ranges', () => {
   const base = { start: START, fuel: 'e10', litres: '30', consumption: '5.5' };
   const cfg = { searchRadiusKm: 20, minWorthwhileSaving: 1 };
