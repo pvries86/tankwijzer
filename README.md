@@ -1,6 +1,6 @@
-# Tankwijzer — is the cheaper pump worth the drive?
+# Tankwijzer: is the cheaper pump worth the drive?
 
-Self-hosted web app that tells you whether it pays to drive a bit further — to another town or across the border — to
+Self-hosted web app that tells you whether it pays to drive a bit further, to another town or across the border, to
 refuel. It finds stations around you (or along your route), routes to each one and compares
 **total cost = fuel bought + cost of the extra kilometres**. It then recommends a station, shows the saving and the
 number of litres from which the trip pays off.
@@ -86,7 +86,7 @@ extraKm(S)    = detourKm(S) − detourKm(baseline)
 break-even    = litres at which saving(S) = 0
 ```
 
-- **Baseline:** by default, the station with the smallest detour — the one you'd use without comparing.
+- **Baseline:** by default, the station with the smallest detour, the one you'd use without comparing.
   Alternatively, a price you pay anyway, with 0 extra km.
 - **Round trip without a destination** assumes you would otherwise not drive at all, so all km to the station and
   back count. If you're driving somewhere anyway, add a destination: then only the extra km compared with the
@@ -241,7 +241,7 @@ All settings are environment variables (see `.env.example`). Nothing secret is s
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Listen address |
-| `CONTACT_EMAIL` | – | Added to outgoing User-Agents (recommended by OSM policies) |
+| `CONTACT_EMAIL` | - | Added to outgoing User-Agents (recommended by OSM policies) |
 | `HTTP_USER_AGENT` | `tankwijzer/0.2 (self-hosted; <email>)` | Outgoing User-Agent for OSM services |
 | `HTTP_TIMEOUT_MS` | `15000` | Outgoing request timeout |
 | `STATION_PROVIDER` | `anwb` | `anwb` (falls back to Overpass) or `overpass`; if both fail, the app shows an error |
@@ -332,12 +332,12 @@ Put the app behind a TLS reverse proxy: browsers only allow GPS on HTTPS or `loc
 
 ## API
 
-- `GET /api/health` — liveness
-- `GET /api/config` — fuels, defaults, providers
-- `GET /api/geocode?q=` — address search (or `lat,lon`)
-- `GET /api/prices` — status of price providers
-- `GET /api/kenteken?k=` — RDW vehicle lookup (Dutch plates; 400 invalid, 404 not found, 429 rate limited, 501 disabled, 502 RDW unavailable)
-- `POST /api/compare` — `{ start:{lat,lon}, destination?, fuel, litres, consumption, perKmCost?, radiusKm?, baseline?:{mode:'nearest'|'custom', price?}, lang? }`
+- `GET /api/health`: liveness
+- `GET /api/config`: fuels, defaults, providers
+- `GET /api/geocode?q=`: address search (or `lat,lon`)
+- `GET /api/prices`: status of price providers
+- `GET /api/kenteken?k=`: RDW vehicle lookup (Dutch plates; 400 invalid, 404 not found, 429 rate limited, 501 disabled, 502 RDW unavailable)
+- `POST /api/compare`: `{ start:{lat,lon}, destination?, fuel, litres, consumption, perKmCost?, radiusKm?, baseline?:{mode:'nearest'|'custom', price?}, lang? }`
 
 ## Project layout
 

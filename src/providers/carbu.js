@@ -28,7 +28,7 @@ const { tr } = require('../i18n');
 const CARBU_FUEL_CODES = { e10: 'E10', e5_98: 'SP98', diesel: 'GO', lpg: 'GPL' };
 const HOUR = 3600000;
 const DAY = 24 * HOUR;
-const LICENSE = '© CARBU.COM — used with written permission for this private installation only; no redistribution';
+const LICENSE = '© CARBU.COM. Used with written permission for this private installation only; no redistribution';
 
 // ---------------------------------------------------------------- HTML helpers
 const NAMED_ENTITIES = {

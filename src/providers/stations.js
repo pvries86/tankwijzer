@@ -98,7 +98,7 @@ function makeOverpassProvider(config, http, cache) {
   return {
     id: 'overpass',
     label: 'OpenStreetMap (Overpass API)',
-    license: 'ODbL 1.0 — © OpenStreetMap contributors',
+    license: 'ODbL 1.0, © OpenStreetMap contributors',
     async find({ start, destination, radiusKm }) {
       const key = `overpass:${start.lat.toFixed(3)},${start.lon.toFixed(3)}:${destination ? `${destination.lat.toFixed(3)},${destination.lon.toFixed(3)}` : '-'}:${radiusKm}`;
       return cache.wrap(key, config.stationCacheTtlS, async () => {

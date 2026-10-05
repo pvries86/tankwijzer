@@ -1,10 +1,27 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
+const { readFileSync, readdirSync } = require('node:fs');
 const path = require('node:path');
 
 const html = readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
 const js = readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
+
+test('app sources and README contain no em dash punctuation', () => {
+  const root = path.join(__dirname, '..');
+  function check(file) {
+    assert.ok(!readFileSync(file, 'utf8').includes(String.fromCharCode(0x2014)), file);
+  }
+  function walk(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (/\.(js|html|css|svg|json)$/.test(entry.name)) check(file);
+    }
+  }
+  walk(path.join(root, 'public'));
+  walk(path.join(root, 'src'));
+  check(path.join(root, 'README.md'));
+});
 
 test('every static info tip is keyboard focusable and labelled (NL + EN)', () => {
   const tips = html.match(/<span[^>]*class="info-tip"[^>]*>/g) || [];

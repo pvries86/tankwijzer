@@ -62,7 +62,7 @@ test('directlease provider: freshness labelling and stale rejection', () => {
   assert.equal(fresh.kind, 'station');
   assert.equal(fresh.asOf, null); // the source does not report its own price timestamp
   assert.match(fresh.source, /DirectLease/);
-  assert.match(fresh.license, /do not redistribute/);
+  assert.match(fresh.license, /do not redistribute/i);
   const stale = p.stationPrice(st, 'e10', ctx(30));
   assert.equal(stale.quality, 'stale-quote');
   assert.equal(stale.live, false);

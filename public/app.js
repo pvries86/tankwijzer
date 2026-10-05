@@ -115,7 +115,7 @@
       : r.kind === 'national-average'
         ? 'CBS (Centraal Bureau voor de Statistiek), tabel 80416ned. Landelijk daggemiddelde incl. btw, gepubliceerd met enkele dagen vertraging; losse stations (vooral onbemand/snelweg) kunnen ±20 ct afwijken'
         : r.source;
-    return `${what} — ${fmtAge(r.asOf)}.`;
+    return `${what} (${fmtAge(r.asOf)}).`;
   }
 
   // ------------------------------------------------------------ consumption unit (L/100 km <-> km/L)
@@ -256,7 +256,7 @@
     return {
       electric: t('Fully electric car: Tankwijzer compares liquid fuel only. Choose a fuel and consumption yourself.', 'Volledig elektrische auto: Tankwijzer vergelijkt alleen vloeibare brandstof. Kies zelf een brandstof en verbruik.'),
       'unsupported-fuel': t('This fuel is not supported. Choose a fuel and consumption yourself.', 'Deze brandstof wordt niet ondersteund. Kies zelf een brandstof en verbruik.'),
-      phev: t('Plug-in hybrid: check the consumption — the lab figure is far too low for driving on fuel only.', 'Plug-in hybride: controleer het verbruik — de labwaarde is veel te laag als je alleen op brandstof rijdt.'),
+      phev: t('Plug-in hybrid: check the consumption. The lab figure is far too low for driving on fuel only.', 'Plug-in hybride: controleer het verbruik. De labwaarde is veel te laag als je alleen op brandstof rijdt.'),
       'lookup-failed': t('The licence plate lookup did not work. Fill in your car yourself.', 'Kenteken opzoeken lukte niet. Vul je auto zelf in.'),
       consumption: t('Fill in a valid consumption.', 'Vul een geldig verbruik in.'),
       litres: t('Fill in how many litres you want to buy (1–200).', 'Vul in hoeveel liter je wilt tanken (1–200).'),
@@ -393,7 +393,7 @@
       nodes.push(el('div', { class: 'recall-box' },
         el('strong', { text: t(`${r.open.length} open recall${r.open.length === 1 ? '' : 's'}`, `${r.open.length} openstaande terugroepactie${r.open.length === 1 ? '' : 's'}`) }),
         r.open.map((o) => el('details', { class: 'recall' },
-          el('summary', null, `${o.code}${o.defect ? ` — ${o.defect.length > 70 ? o.defect.slice(0, 70) + '…' : o.defect}` : ''}`),
+          el('summary', null, `${o.code}${o.defect ? `: ${o.defect.length > 70 ? o.defect.slice(0, 70) + '…' : o.defect}` : ''}`),
           o.defect ? el('p', { class: 'small' }, el('b', { text: t('Defect: ', 'Defect: ') }), o.defect) : null,
           o.risks.length ? el('p', { class: 'small' }, el('b', { text: t('Possible danger: ', 'Mogelijk gevaar: ') }), o.risks.join('; ')) : null,
           o.remedy ? el('p', { class: 'small' }, el('b', { text: t('Repair: ', 'Herstel: ') }), o.remedy) : null,
@@ -760,7 +760,7 @@
       chosen.classList.add('ok');
     } else {
       chosen.textContent = which === 'start' ? t('No location chosen yet.', 'Nog geen locatie gekozen.')
-        : t('No destination — a round trip from your start is assumed.', 'Geen bestemming — er wordt uitgegaan van heen en terug vanaf je start.');
+        : t('No destination: a round trip from your start is assumed.', 'Geen bestemming: er wordt uitgegaan van heen en terug vanaf je start.');
       chosen.classList.remove('ok');
     }
     drawPins();
@@ -1116,7 +1116,7 @@
           el('span', null, t('Break-even: ', 'Omslagpunt: '), el('b', { text: breakEvenText(s.breakEven) }))),
         el('div', { class: 'provenance', text: `${s.localFuelName}${p.product ? t(` (listed as "${p.product}")`, ` (vermeld als "${p.product}")`) : ''} · ${p.source} · ${priceFreshness(p)}${s.fuelAvailability === 'unknown' ? t(' · fuel availability not confirmed in OSM', ' · beschikbaarheid brandstof niet bevestigd in OSM') : ''}` }),
         p.estimate ? el('div', { class: 'provenance estimate-note' }, t("Not this pump's price", 'Niet de prijs van deze pomp'),
-          [p.fallbackReason, estNote].filter(Boolean).length ? [' ', infoTip([p.fallbackReason, estNote].filter(Boolean).join(' — '))] : null) : null,
+          [p.fallbackReason, estNote].filter(Boolean).length ? [' ', infoTip([p.fallbackReason, estNote].filter(Boolean).join(' - '))] : null) : null,
         navLinks(s, false)));
     });
     if (!data.results.length) list.append(el('li', { class: 'muted', text: t('No stations with a known price.', 'Geen stations met een bekende prijs.') }));
@@ -1199,7 +1199,7 @@
       const r = data.references[c];
       box.append(el('p', { class: 'source-row' },
         el('b', { text: t(`${c} fallback estimate: `, `${c} terugvalschatting: `) }),
-        r ? `${eurL(r.price)} — ${refSourceText(r)} ` : t('not available. ', 'niet beschikbaar. '),
+        r ? `${eurL(r.price)}: ${refSourceText(r)} ` : t('not available. ', 'niet beschikbaar. '),
         r && r.sourceUrl ? el('a', { href: r.sourceUrl, target: '_blank', rel: 'noopener', text: t('Source', 'Bron') }) : null));
     }
     const st = data.sources.stations;
@@ -1327,7 +1327,7 @@
   for (const b of document.querySelectorAll('#cons-toggle button')) b.addEventListener('click', () => setConsumptionUnit(b.dataset.unit));
   $('consumption').addEventListener('input', updateConsumptionHint);
   // Open navigation links via window.open: some embedded/in-app browsers ignore target=_blank anchors.
-  // With 'noopener' the return value is always null, so it cannot be used to detect blocking — never fall back
+  // With 'noopener' the return value is always null, so it cannot be used to detect blocking; never fall back
   // to navigating this tab (that caused a double open).
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a.ext-nav');

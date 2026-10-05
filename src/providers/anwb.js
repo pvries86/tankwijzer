@@ -414,7 +414,7 @@ function makeAnwbStationProvider(client) {
   return {
     id: 'anwb',
     label: 'ANWB Onderweg (stations with prices)',
-    license: '© ANWB and/or its licensors — private personal use only, no redistribution',
+    license: '© ANWB and/or its licensors. Private personal use only, no redistribution',
     async find(search) {
       const r = await client.find(search);
       const lang = search && search.lang;
@@ -471,7 +471,7 @@ function makeAnwbPriceProvider(client) {
         source: src,
         dataOrigin: station.dataOrigin,
         sourceUrl: 'https://www.anwb.nl/mobiel/onderweg-app',
-        license: '© ANWB and/or its licensors — private personal use only, no redistribution',
+        license: '© ANWB and/or its licensors. Private personal use only, no redistribution',
         asOf: null,
         priceDateKnown: false,
         fetchedAt: station.fetchedAt,

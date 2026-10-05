@@ -57,7 +57,7 @@ function makeCbsProvider(config, http, cache) {
   return {
     id: 'cbs-nl',
     country: 'NL',
-    label: 'CBS StatLine 80416ned — daily national average pump price (NL)',
+    label: 'CBS StatLine 80416ned: daily national average pump price (NL)',
     async reference(fuelId) {
       const data = await load();
       const rec = data.latest[fuelId];
@@ -95,7 +95,7 @@ function makeFodProvider(config, http, cache) {
   return {
     id: 'fod-be',
     country: 'BE',
-    label: 'FOD Economie — official maximum pump prices (BE)',
+    label: 'FOD Economie: official maximum pump prices (BE)',
     async reference(fuelId) {
       const data = await load();
       const v = data.prices[fuelId];
@@ -247,7 +247,7 @@ function makeDirectLeaseProvider(config, http) {
         estimate: false,
         source: DIRECTLEASE_SOURCE,
         sourceUrl: 'https://tankservice.app-it-up.com',
-        license: 'Private use with permission of App It Up BV — do not redistribute',
+        license: 'Private use with permission of App It Up BV. Do not redistribute',
         asOf: null,
         fetchedAt: r.fetchedAt,
         live,
