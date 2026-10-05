@@ -68,6 +68,20 @@ test('map scrolling and back-to-top are accessible and wired', () => {
   assert.match(css, /#map\.leaflet-container\s*\{\s*touch-action: auto/);
 });
 
+test('initial map shows the Netherlands before a location is chosen', () => {
+  assert.match(js, /L\.map\('map', \{ scrollWheelZoom: false \}\)\.setView\(\[52\.1, 5\.3\], 7\)/);
+});
+
+test('example vehicle values are visibly labelled, persisted as examples and replaced on lookup', () => {
+  assert.doesNotMatch(html, /id="vehicle-example"/);
+  assert.match(js, /vehicle-summary-title'\)\.replaceChildren/);
+  assert.match(js, /example \? \[' ', infoTip\(t\('Example values/);
+  assert.match(js, /AutoCompare\.initialExamples\(prefs, !!veh\.vehicle\)/);
+  assert.match(js, /tankOrigin: veh\.origins\.tank/);
+  assert.match(js, /Berekend met voorbeeldwaarden voor de auto/);
+  assert.match(js, /if \(veh\.origins\[id\] === 'example'\) \{ \$\(id\)\.value = ''; veh\.origins\[id\] = null; \}/);
+});
+
 test('info tips use a touch and keyboard operable popover with plain-text explanations', () => {
   assert.match(html, /src="info-tips.js"/);
   const tips = readFileSync(path.join(__dirname, '../public/info-tips.js'), 'utf8');

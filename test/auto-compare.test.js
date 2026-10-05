@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { adviceReady, create } = require('../public/auto-compare');
+const { adviceReady, initialExamples, create } = require('../public/auto-compare');
 
 test('advice needs actual usable input origins, not hidden defaults', () => {
   const values = { consumption: 6, litres: 40 };
@@ -17,6 +17,15 @@ test('advice needs actual usable input origins, not hidden defaults', () => {
   assert.equal(adviceReady({ ...manual, consumptionOrigin: 'wltp', needsRealConsumption: true }), false);
   assert.equal(adviceReady({ ...manual, needsRealConsumption: true }), true);
   assert.equal(adviceReady({ ...values, consumptionOrigin: 'co2', litresOrigin: 'tank' }), true, 'usable remembered/RDW profile');
+});
+
+test('labelled examples enable advice without overriding saved or cleared values', () => {
+  assert.deepEqual(initialExamples({}, false), { consumption: 6.5, litres: 40, tank: 50, level: 20 });
+  assert.deepEqual(initialExamples({}, true), {});
+  assert.deepEqual(initialExamples({ consumptionOrigin: 'manual', litresOrigin: 'tank', tank: 60 }, false), {});
+  assert.deepEqual(initialExamples({ consumptionOrigin: null, litresOrigin: null, tank: '' }, false), {});
+  assert.equal(adviceReady({ consumption: 6.5, litres: 40, consumptionOrigin: 'example', litresOrigin: 'example' }), true);
+  assert.equal(adviceReady({ consumption: 6.5, litres: 40, consumptionOrigin: 'example', litresOrigin: 'example', needsRealConsumption: true }), false);
 });
 
 function harness() {

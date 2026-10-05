@@ -7,9 +7,18 @@
 }(typeof self !== 'undefined' ? self : this, () => {
   function adviceReady({ consumption, litres, consumptionOrigin, litresOrigin, valid = true, needsRealConsumption = false }) {
     const c = Number(consumption), l = Number(litres);
-    return valid && ['manual', 'wltp', 'nedc', 'co2'].includes(consumptionOrigin)
-      && ['manual', 'tank'].includes(litresOrigin) && c > 0 && c <= 50 && l >= 1 && l <= 200
+    return valid && ['manual', 'wltp', 'nedc', 'co2', 'example'].includes(consumptionOrigin)
+      && ['manual', 'tank', 'example'].includes(litresOrigin) && c > 0 && c <= 50 && l >= 1 && l <= 200
       && (!needsRealConsumption || consumptionOrigin === 'manual');
+  }
+
+  function initialExamples(prefs, hasVehicle) {
+    if (hasVehicle) return {};
+    const values = {};
+    if (!Object.hasOwn(prefs, 'consumptionOrigin')) values.consumption = 6.5;
+    if (!Object.hasOwn(prefs, 'litresOrigin')) values.litres = 40;
+    if (!Object.hasOwn(prefs, 'tank')) { values.tank = 50; values.level = 20; }
+    return values;
   }
 
   function create({ getBody, request, onResult, onError, onStatus, onPending,
@@ -58,5 +67,5 @@
     }
     return { schedule, invalidate, retry: () => schedule(0, true) };
   }
-  return { adviceReady, create };
+  return { adviceReady, initialExamples, create };
 }));

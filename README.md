@@ -106,6 +106,11 @@ Choosing a location (GPS, a selected search result, Enter to confirm a search, o
 available prices automatically. Typing an address only searches for suggestions; it does not load stations.
 The fuel selector stays visible, even without a car profile.
 
+On first use, the form starts with clearly labelled example values: 6.5 L/100 km, a 50 L tank with
+20% remaining, and 40 L to buy. These activate advice after selecting a location, with an example-values
+notice beside the car and in the recommendation. Adjust the fields or look up your licence plate to
+replace them. Saved inputs and remembered cars take precedence; deliberately cleared fields stay empty.
+
 Without usable consumption and litres to buy, stations are ordered by detour distance, with no savings,
 break-even amounts or recommendation. Missing prices remain visible as unavailable. Fill in the car manually
 or look up a plate to activate advice. A usable remembered profile also works; old unlabelled default values

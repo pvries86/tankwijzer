@@ -137,8 +137,8 @@
     const conv = n > 0 ? `≈${num(convertConsumption(n), 1)} ${consUnit === 'kml' ? 'L/100 km' : 'km/L'}` : '';
     const kind = veh.origins.consumption;
     let extra = '';
-    if (kind && kind !== 'manual' && $('uplift').checked && Number($('uplift-pct').value)) extra = ` +${num($('uplift-pct').value, 0)}%`;
-    const short = { wltp: 'WLTP', nedc: 'NEDC', co2: 'CO₂', manual: t('edited', 'aangepast') }[kind] || '';
+    if (['wltp', 'nedc', 'co2'].includes(kind) && $('uplift').checked && Number($('uplift-pct').value)) extra = ` +${num($('uplift-pct').value, 0)}%`;
+    const short = { wltp: 'WLTP', nedc: 'NEDC', co2: 'CO₂', manual: t('edited', 'aangepast'), example: t('example', 'voorbeeld') }[kind] || '';
     const text = [conv, short && short + extra].filter(Boolean).join(' · ');
     if (!text) { node.hidden = true; node.textContent = ''; return; }
     node.className = `origin origin-${!kind || kind === 'manual' ? 'manual' : 'auto'}`;
@@ -178,7 +178,7 @@
   function savePrefs() {
     const p = {
       fuel: $('fuel').value, consumption: consumptionL100(), consUnit, litres: $('litres').value, radius: $('radius').value, perkm: $('perkm').value, priority: $('priority').value, per10min: $('per10min').value, minsaving: $('minsaving').value,
-      tank: $('tank').value, level: $('level').value, litresOrigin: veh.origins.litres, upliftEnabled: $('uplift').checked, upliftPct: $('uplift-pct').value,
+      tank: $('tank').value, tankOrigin: veh.origins.tank, level: $('level').value, litresOrigin: veh.origins.litres, upliftEnabled: $('uplift').checked, upliftPct: $('uplift-pct').value,
       consumptionOrigin: veh.origins.consumption,
       balancedDefaultApplied: true,
     };
@@ -206,6 +206,7 @@
         return t(`${free}% of ${tank} L tank`, `${free}% van ${tank} L tank`);
       }
       case 'manual': return t('adjusted by you', 'door jou aangepast');
+      case 'example': return t('example value, adjust for your car', 'voorbeeldwaarde, pas aan voor jouw auto');
       default: return '';
     }
   }
@@ -277,7 +278,11 @@
       tank > 0 ? t(`${num(tank, 0)} L tank`, `${num(tank, 0)} L tank`) : null,
       litres > 0 ? t(`~${num(litres, 0)} L to buy`, `~${num(litres, 0)} L tanken`) : null,
     ].filter(Boolean);
-    $('vehicle-summary-title').textContent = title || t('Your car', 'Je auto');
+    const example = Object.values(veh.origins).includes('example');
+    $('vehicle-summary-title').replaceChildren(
+      title || (example ? t('Example car', 'Voorbeeldauto') : t('Your car', 'Je auto')),
+      ...(example ? [' ', infoTip(t('Example values. Adjust them for your car or look up your licence plate.',
+        'Voorbeeldwaarden. Pas ze aan voor jouw auto of zoek je kenteken op.'))] : []));
     $('vehicle-summary-line').textContent = parts.join(' · ');
     $('vehicle-badges').replaceChildren(...vehicleBadges(v));
     const reason = vehicleAttentionReason();
@@ -345,7 +350,7 @@
       return false;
     }
     $('litres').value = Math.max(1, res.value);
-    veh.origins.litres = 'tank';
+    veh.origins.litres = veh.origins.tank === 'example' ? 'example' : 'tank';
     return true;
   }
 
@@ -460,6 +465,9 @@
 
   /** Fill fuel / consumption / tank / litres from an RDW vehicle. Only called right after a lookup or restore. */
   function prefillFromVehicle(v) {
+    for (const id of ['consumption', 'tank', 'litres']) {
+      if (veh.origins[id] === 'example') { $(id).value = ''; veh.origins[id] = null; }
+    }
     veh.vehicle = v;
     veh.lab = null;
     veh.origins = { ...veh.origins, fuel: null, consumption: null, tank: null };
@@ -627,6 +635,7 @@
     $('uplift-pct').value = prefs.upliftPct ?? (vcfg.realismUpliftPct ?? 15);
     $('uplift').checked = prefs.upliftEnabled ?? true;
     if (prefs.tank) $('tank').value = prefs.tank;
+    veh.origins.tank = prefs.tankOrigin === 'example' ? 'example' : null;
     if (prefs.level != null && prefs.level !== '') $('level').value = prefs.level;
     if (prefs.litresOrigin === 'tank' && prefs.tank) veh.origins.litres = 'tank';
     if (vcfg.kentekenLookup) restoreRememberedCar();
@@ -641,6 +650,14 @@
       }
     }
     if (prefs.tank && !veh.origins.tank) veh.origins.tank = veh.vehicle && veh.vehicle.tank && Number(prefs.tank) === veh.vehicle.tank.value ? veh.vehicle.tank.source : 'manual';
+    const examples = AutoCompare.initialExamples(prefs, !!veh.vehicle);
+    if (examples.consumption != null) { setConsumptionL100(examples.consumption); veh.origins.consumption = 'example'; }
+    if (examples.litres != null) { $('litres').value = examples.litres; veh.origins.litres = 'example'; }
+    if (examples.tank != null) {
+      $('tank').value = examples.tank;
+      $('level').value = examples.level;
+      veh.origins.tank = 'example';
+    }
     setVehicleExpanded(vehExpanded, { persist: false });
     renderOrigins();
     wireVehicle();
@@ -701,7 +718,7 @@
       $('map').classList.add('no-map');
       return;
     }
-    state.map = L.map('map', { scrollWheelZoom: false }).setView([51.3, 4.6], 8);
+    state.map = L.map('map', { scrollWheelZoom: false }).setView([52.1, 5.3], 7);
     const gestureHint = el('div', { class: 'map-gesture-hint', hidden: true, 'aria-live': 'polite' });
     $('map').append(gestureHint);
     ScrollControls.mapGestures(state.map, $('map'), gestureHint, t, /Mac|iPhone|iPad/.test(navigator.platform));
@@ -1115,6 +1132,9 @@
     const conf = CONFIDENCE_LABEL()[r.confidence];
     box.replaceChildren(...[
       el('h2', { text: r.headline }),
+      ['consumption', 'litres'].some((id) => veh.origins[id] === 'example')
+        ? el('p', { class: 'caveat', text: t('Calculated with example car values. Adjust consumption and litres to buy for personal advice.',
+          'Berekend met voorbeeldwaarden voor de auto. Pas verbruik en liters tanken aan voor persoonlijk advies.') }) : null,
       conf ? el('p', { class: `confidence ${r.confidence}` }, conf.label, ' ', infoTip(conf.reason)) : null,
       el('p', { text: r.detail }),
       ...(r.caveats || []).map((c) => el('p', { class: 'caveat', text: `⚠ ${c}` })),
