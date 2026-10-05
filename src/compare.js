@@ -290,7 +290,7 @@ function makeCompareService({ config, stationProvider, fallbackStationProvider, 
   };
 }
 
-const QUOTED = new Set(['live-quote', 'station-report']);
+const QUOTED = new Set(['live-quote']);
 
 // 'quote' = price for that pump (fresh), 'stale' = pump quote older than 24 h, 'estimate' = country figure
 function certainty(price) {

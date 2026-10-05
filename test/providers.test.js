@@ -3,11 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const zlib = require('zlib');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
 const { parseFodMaxPricePdf, decodePdfString } = require('../src/providers/fodPdf');
-const { parseCbsRecords, makeStationFileProvider } = require('../src/providers/prices');
+const { parseCbsRecords } = require('../src/providers/prices');
 const { parseOverpassResponse, buildOverpassQuery, selectStations } = require('../src/providers/stations');
 const { stationFuelAvailability, getFuel } = require('../src/fuels');
 const { parseLatLon, makeHaversineRouter, makePhotonGeocoder, photonLabel } = require('../src/providers/routing');
@@ -180,31 +177,6 @@ test('haversine router: round trip vs route', async () => {
   assert.ok(Math.abs(route.toStation[0] + route.fromStation[0] - route.baseTripKm) < 1e-6);
 });
 
-test('station price file: match by id or coordinates, reject stale entries', () => {
-  const file = path.join(os.tmpdir(), `bf-prices-${process.pid}.json`);
-  const now = new Date().toISOString();
-  fs.writeFileSync(file, JSON.stringify({
-    source: 'test',
-    prices: [
-      { stationId: 'osm:node/1', fuel: 'e10', price: 1.9, observedAt: now },
-      { lat: 51.5, lon: 4.5, fuel: 'e10', price: 1.8, observedAt: now },
-      { stationId: 'osm:node/3', fuel: 'e10', price: 1.7, observedAt: '2020-01-01T00:00:00Z' },
-    ],
-  }));
-  try {
-    const p = makeStationFileProvider({ stationPriceFile: file, stationPriceMaxAgeH: 48 });
-    assert.equal(p.stationPrice({ id: 'osm:node/1', lat: 0, lon: 0 }, 'e10').price, 1.9);
-    assert.equal(p.stationPrice({ id: 'osm:node/1', lat: 0, lon: 0 }, 'e10').kind, 'station');
-    assert.equal(p.stationPrice({ id: 'x', lat: 51.5003, lon: 4.5 }, 'e10').price, 1.8);
-    assert.equal(p.stationPrice({ id: 'x', lat: 51.51, lon: 4.5 }, 'e10'), null);
-    assert.equal(p.stationPrice({ id: 'osm:node/3', lat: 0, lon: 0 }, 'e10'), null);
-    assert.equal(p.stationPrice({ id: 'osm:node/1', lat: 0, lon: 0 }, 'diesel'), null);
-  } finally {
-    fs.unlinkSync(file);
-  }
-  const missing = makeStationFileProvider({ stationPriceFile: file, stationPriceMaxAgeH: 48 });
-  assert.equal(missing.stationPrice({ id: 'osm:node/1' }, 'e10'), null);
-});
 
 test('Throttle: default waits for the previous call; overlap only spaces start times', async () => {
   const slow = (log, name) => () => new Promise((r) => { log.push(`start ${name}`); setTimeout(() => { log.push(`end ${name}`); r(name); }, 60); });

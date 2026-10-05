@@ -196,11 +196,10 @@ The API defaults to English. Some texts are English only:
 
 Price priority per station:
 
-1. station price file;
-2. CARBU.COM (Belgium);
-3. ANWB Onderweg;
-4. DirectLease, if enabled;
-5. country estimate.
+1. CARBU.COM (Belgium);
+2. ANWB Onderweg;
+3. DirectLease, if enabled;
+4. country estimate.
 
 Estimates are never presented as station prices, and the recommendation's confidence is lowered when they are used.
 
@@ -209,7 +208,6 @@ Estimates are never presented as station prices, and the recommendation's confid
 | Stations + prices (NL, BE, DE, …) | ANWB Onderweg POI API | Off by default (`ANWB_PRIVATE_USE_ACK`). No price date, so the retrieval time is shown. Cached 3 h per area tile. |
 | Station prices (BE) | CARBU.COM station lists | Off by default (`CARBU_PRIVATE_USE_ACK`). Includes each station's price date. Cached 3 h. |
 | Station prices (NL, BE) | DirectLease via the optional `pyfuelprices` sidecar | Off by default (`DIRECTLEASE_PRIVATE_USE_ACK`). Cached 24 h per station. |
-| Station prices | Local JSON file (`station-file`) | Prices you collect yourself. |
 | NL estimate | [CBS StatLine 80416ned](https://opendata.cbs.nl/statline/#/CBS/nl/dataset/80416ned/table) | Open data (CC BY 4.0). Daily national average, published about a week late. No 98 octane. |
 | BE estimate | [FOD Economie maximum prices](https://economie.fgov.be/nl/themas/energie/energieprijzen/maximumprijzen/officieel-tarief-van-de) | Legal maximum price. Stations often sell lower, so BE savings are conservative. |
 | Stations (fallback) | OpenStreetMap via Overpass | ODbL. Used when ANWB is off or unavailable. NL/BE only. |
@@ -249,7 +247,7 @@ All settings are environment variables (see `.env.example`). Nothing secret is s
 | `STATION_CACHE_TTL_S` | `86400` | Station cache |
 | `SEARCH_RADIUS_KM` | `20` | Default radius (UI allows 1–50) |
 | `MAX_STATIONS_PER_COUNTRY` | `12` | Stations routed per country |
-| `PRICE_PROVIDERS` | `station-file,carbu,anwb,directlease,cbs-nl,fod-be` | Order = priority; providers without their ACK stay inactive |
+| `PRICE_PROVIDERS` | `carbu,anwb,directlease,cbs-nl,fod-be` | Order = priority; providers without their ACK stay inactive |
 | `ANWB_PRIVATE_USE_ACK` / `ANWB_PAUSED` | `false` / `false` | Enable ANWB Onderweg / make no ANWB requests |
 | `ANWB_DATA_DIR` | `data/anwb` | Tile cache, request log, `blocked.json` |
 | `ANWB_CACHE_TTL_H` | `3` | Re-fetch an area tile at most once per TTL |
@@ -270,8 +268,6 @@ All settings are environment variables (see `.env.example`). Nothing secret is s
 | `DIRECTLEASE_URL` | `http://127.0.0.1:8090` | Sidecar URL (Compose profile `directlease`) |
 | `DIRECTLEASE_PRIVATE_USE_ACK` / `DIRECTLEASE_PAUSED` | `false` / `false` | Enable DirectLease / make no DirectLease requests (app and sidecar) |
 | `DIRECTLEASE_CACHE_TTL_H` / `DIRECTLEASE_MAX_AGE_H` | `24` / `36` | Sidecar cache / never use older quotes |
-| `STATION_PRICE_FILE` | `data/station-prices.json` | Station price file |
-| `STATION_PRICE_MAX_AGE_H` | `48` | Older station prices are ignored |
 | `PRICE_CACHE_TTL_S` | `10800` | CBS/FOD cache |
 | `CBS_URL`, `FOD_PDF_URL` | official URLs | Override if they move |
 | `ROUTING_PROVIDER` | `osrm` | `osrm` or `estimate` (no network) |
@@ -285,15 +281,6 @@ All settings are environment variables (see `.env.example`). Nothing secret is s
 | `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION` | OSM tiles | Map tiles |
 | `MIN_WORTHWHILE_SAVING_EUR` | `1.0` | Below this, recommend the nearest station |
 | `RATE_LIMIT_PER_MIN` | `30` | Per-IP limit for geocode/compare/prices |
-
-### Station price file
-
-With Docker Compose, put `station-prices.json` in `./prices/`. The format is shown in
-[`data/station-prices.example.json`](data/station-prices.example.json).
-
-- Entries match a station by `stationId` or by coordinates within 75 m.
-- `observedAt` is required. Entries older than `STATION_PRICE_MAX_AGE_H` are ignored.
-- The file is re-read when it changes.
 
 ### DirectLease sidecar (optional)
 
@@ -317,7 +304,7 @@ In `src/providers/prices.js`, a price provider is an object with one of:
 Either one returns:
 
 ```js
-{ price, kind: 'station'|'national-average'|'legal-maximum', quality: 'live-quote'|'stale-quote'|'station-report'|'country-estimate',
+{ price, kind: 'station'|'national-average'|'legal-maximum', quality: 'live-quote'|'stale-quote'|'country-estimate',
   estimate, source, sourceUrl, license, asOf, fetchedAt, live, note }
 ```
 
@@ -345,12 +332,11 @@ Put the app behind a TLS reverse proxy: browsers only allow GPS on HTTPS or `loc
 src/economics.js        pure cost model
 src/compare.js          orchestration, validation, price priority, recommendation
 src/i18n.js             NL/EN helpers for server texts
-src/providers/          ANWB, CARBU.COM, stations (Overpass), prices (CBS, FOD, file, DirectLease), routing, geocoding
+src/providers/          ANWB, CARBU.COM, stations (Overpass), prices (CBS, FOD, DirectLease), routing, geocoding
 sidecar/directlease/    optional Python pyfuelprices sidecar
 src/server.js           HTTP server, static files, security headers, rate limiting
 public/                 UI (vanilla JS + Leaflet)
-data/                   example station price file, offline place index (places.tsv), runtime caches
-prices/                 optional place for your own station-prices.json
+data/                   offline place index (places.tsv), runtime caches
 scripts/                build_places.py: rebuilds data/places.tsv from GeoNames (CC BY 4.0)
 test/                   node:test suites
 .github/workflows/      CI: tests + multi-arch image to ghcr.io

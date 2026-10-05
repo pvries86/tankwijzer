@@ -280,9 +280,9 @@ test('config: DirectLease is in the default list but off without ACK; still conf
   assert.equal(c.directLeaseAck, false);
   assert.equal(c.directLeasePaused, false);
   assert.equal(loadConfig({ DIRECTLEASE_PRIVATE_USE_ACK: 'true' }).directLeaseAck, true);
-  assert.deepEqual(c.priceProviders, ['station-file', 'carbu', 'anwb', 'directlease', 'cbs-nl', 'fod-be']);
-  assert.deepEqual(loadConfig({ PRICE_PROVIDERS: 'station-file,directlease,cbs-nl,fod-be' }).priceProviders,
-    ['station-file', 'directlease', 'cbs-nl', 'fod-be']);
+  assert.deepEqual(c.priceProviders, ['carbu', 'anwb', 'directlease', 'cbs-nl', 'fod-be']);
+  assert.deepEqual(loadConfig({ PRICE_PROVIDERS: 'directlease,cbs-nl,fod-be' }).priceProviders,
+    ['directlease', 'cbs-nl', 'fod-be']);
   assert.equal(c.directLeaseMaxAgeH, 36);
   assert.equal(loadConfig({ DIRECTLEASE_URL: 'http://directlease:8090' }).directLeaseUrl, 'http://directlease:8090');
 });

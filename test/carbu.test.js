@@ -142,7 +142,7 @@ test('carbu helpers: dates, location lookup, postal codes, entities, fuel codes'
 test('config: CARBU.COM off by default, before ANWB in the price order, >= 1 s between requests', () => {
   const c = loadConfig({});
   assert.equal(c.carbuAck, false);
-  assert.deepEqual(c.priceProviders, ['station-file', 'carbu', 'anwb', 'directlease', 'cbs-nl', 'fod-be']);
+  assert.deepEqual(c.priceProviders, ['carbu', 'anwb', 'directlease', 'cbs-nl', 'fod-be']);
   assert.ok(c.carbuMinIntervalMs >= 1000);
   assert.match(c.carbuUserAgent, /tankwijzer.*private self-hosted.*CARBU\.COM/);
   assert.equal(loadConfig({ CARBU_PRIVATE_USE_ACK: 'true' }).carbuAck, true);

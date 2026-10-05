@@ -1,7 +1,5 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
 const { parseFodMaxPricePdf } = require('./fodPdf');
 const { haversineKm } = require('../http');
 const { tr } = require('../i18n');
@@ -9,10 +7,10 @@ const { tr } = require('../i18n');
 /*
  * Price model. Every price carries provenance so the UI never presents a reference
  * value as a live pump price:
- *   kind: 'station'          - price for this specific station (DirectLease quote or station-file report)
+ *   kind: 'station'          - price for this specific station
  *         'national-average' - CBS daily national average pump price (NL)
  *         'legal-maximum'    - FOD Economie official maximum price (BE); actual pump prices are often lower
- *   quality: live-quote | stale-quote | station-report | country-estimate
+ *   quality: live-quote | stale-quote | country-estimate
  *   estimate: true when the price is NOT specific to this station (country reference)
  */
 
@@ -117,70 +115,6 @@ function makeFodProvider(config, http, cache) {
     async status() {
       const data = await load();
       return { ok: true, fetchedAt: data.fetchedAt, validFrom: data.validFrom, listNo: data.listNo, prices: data.prices };
-    },
-  };
-}
-
-// ---------------------------------------------------------------- station-specific JSON file
-/*
- * File format (see data/station-prices.example.json):
- * { "source": "...", "prices": [ { "stationId": "osm:node/123", "lat": 51.4, "lon": 4.9,
- *     "fuel": "e10", "price": 1.899, "observedAt": "2026-09-29T08:00:00Z", "source": "..." } ] }
- * Match by stationId, or by coordinates within 75 m.
- */
-function makeStationFileProvider(config) {
-  const file = path.resolve(config.stationPriceFile);
-  let cached = { mtimeMs: -1, data: null };
-  function load() {
-    let st;
-    try {
-      st = fs.statSync(file);
-    } catch {
-      return null;
-    }
-    if (st.mtimeMs !== cached.mtimeMs) {
-      try {
-        cached = { mtimeMs: st.mtimeMs, data: JSON.parse(fs.readFileSync(file, 'utf8')) };
-      } catch (err) {
-        cached = { mtimeMs: st.mtimeMs, data: null, error: err.message };
-      }
-    }
-    return cached.data;
-  }
-  return {
-    id: 'station-file',
-    label: `Station price file (${config.stationPriceFile})`,
-    stationPrice(station, fuelId) {
-      const data = load();
-      if (!data || !Array.isArray(data.prices)) return null;
-      const now = Date.now();
-      const candidates = data.prices.filter((p) =>
-        p.fuel === fuelId &&
-        Number.isFinite(p.price) && p.price > 0 &&
-        (p.stationId === station.id ||
-          (Number.isFinite(p.lat) && Number.isFinite(p.lon) && haversineKm(p, station) < 0.075)));
-      candidates.sort((a, b) => Date.parse(b.observedAt || 0) - Date.parse(a.observedAt || 0));
-      const p = candidates[0];
-      if (!p) return null;
-      const age = ageHours(p.observedAt, now);
-      if (age === null || age > config.stationPriceMaxAgeH) return null;
-      return {
-        price: p.price,
-        kind: 'station',
-        quality: 'station-report',
-        estimate: false,
-        source: p.source || data.source || 'Station price file',
-        sourceUrl: p.sourceUrl || data.sourceUrl || null,
-        license: data.license || null,
-        asOf: p.observedAt,
-        fetchedAt: new Date(cached.mtimeMs).toISOString(),
-        live: age <= 24,
-        note: 'Station-specific price supplied by the operator of this installation.',
-      };
-    },
-    status() {
-      const data = load();
-      return { ok: !!data, file: config.stationPriceFile, entries: data && Array.isArray(data.prices) ? data.prices.length : 0, error: cached.error || null };
     },
   };
 }
@@ -340,7 +274,6 @@ function makeDirectLeaseProvider(config, http) {
 module.exports = {
   makeCbsProvider,
   makeFodProvider,
-  makeStationFileProvider,
   makeDirectLeaseProvider,
   directLeaseQuote,
   parseCbsRecords,

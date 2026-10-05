@@ -79,7 +79,6 @@
   const QUALITY_LABEL = () => ({
     'live-quote': t('Station quote', 'Stationsprijs'),
     'stale-quote': t('Station quote (retrieved earlier)', 'Stationsprijs (eerder opgehaald)'),
-    'station-report': t('Station report', 'Stationsmelding'),
   });
   const CONFIDENCE_LABEL = () => ({
     // High confidence is the normal case and is not shown.

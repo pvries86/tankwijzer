@@ -8,7 +8,7 @@ const { makeHttp } = require('./http');
 const { TtlCache, Throttle, RateLimiter } = require('./cache');
 const { FUELS } = require('./fuels');
 const { makeOverpassProvider } = require('./providers/stations');
-const { makeCbsProvider, makeFodProvider, makeStationFileProvider, makeDirectLeaseProvider } = require('./providers/prices');
+const { makeCbsProvider, makeFodProvider, makeDirectLeaseProvider } = require('./providers/prices');
 const { makeAnwbClient, makeAnwbStationProvider, makeAnwbPriceProvider } = require('./providers/anwb');
 const { makeCarbuClient, makeCarbuPriceProvider } = require('./providers/carbu');
 const { makeOsrmRouter, makeHaversineRouter, makeNominatimGeocoder, makePhotonGeocoder, parseLatLon } = require('./providers/routing');
@@ -49,7 +49,6 @@ function buildApp(config = loadConfig(), deps = {}) {
   const anwbClient = deps.anwbClient || makeAnwbClient(config, deps.anwbDeps || {});
   const carbuClient = deps.carbuClient || makeCarbuClient(config, deps.carbuDeps || {});
   const priceFactories = {
-    'station-file': () => makeStationFileProvider(config),
     carbu: () => makeCarbuPriceProvider(carbuClient, config),
     anwb: () => makeAnwbPriceProvider(anwbClient),
     directlease: () => makeDirectLeaseProvider(config, client),

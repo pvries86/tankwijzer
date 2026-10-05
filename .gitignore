@@ -7,7 +7,6 @@
 data/anwb/
 data/carbu/
 directlease-data/
-prices/*.json
 
 # Dependencies / tooling
 node_modules/

@@ -83,15 +83,13 @@ function loadConfig(env = process.env) {
 
     // Order = priority per station: CARBU.COM (BE), ANWB Onderweg, DirectLease (sidecar), then CBS/FOD
     // country ESTIMATES (clearly labelled). Each per-station source only runs when its *_PRIVATE_USE_ACK is set.
-    priceProviders: list(env.PRICE_PROVIDERS, ['station-file', 'carbu', 'anwb', 'directlease', 'cbs-nl', 'fod-be']),
+    priceProviders: list(env.PRICE_PROVIDERS, ['carbu', 'anwb', 'directlease', 'cbs-nl', 'fod-be']),
     // DirectLease Tankservice via the pyfuelprices sidecar (Compose profile "directlease").
     directLeaseAck: bool(env.DIRECTLEASE_PRIVATE_USE_ACK, false),
     directLeasePaused: bool(env.DIRECTLEASE_PAUSED, false),
     directLeaseUrl: env.DIRECTLEASE_URL || 'http://127.0.0.1:8090',
     directLeaseTimeoutMs: num(env.DIRECTLEASE_TIMEOUT_MS, 60000),
     directLeaseMaxAgeH: num(env.DIRECTLEASE_MAX_AGE_H, 36),
-    stationPriceFile: env.STATION_PRICE_FILE || 'data/station-prices.json',
-    stationPriceMaxAgeH: num(env.STATION_PRICE_MAX_AGE_H, 48),
     priceCacheTtlS: num(env.PRICE_CACHE_TTL_S, 3 * 3600),
     cbsUrl: env.CBS_URL || 'https://opendata.cbs.nl/ODataApi/odata/80416ned/TypedDataSet',
     fodPdfUrl: env.FOD_PDF_URL ||
