@@ -193,8 +193,17 @@ Privacy and robustness:
 - Results are cached in memory for 24 h; a "not found" is cached for 1 h.
 - The endpoint has its own rate limit of 20 per minute.
 - Logs contain only a masked plate (`AB**3D`).
-- The plate is stored in the browser only if you tick *onthoud mijn auto*.
-- The detailed vehicle fields are collapsed behind a one-line summary (*Aanpassen* / *Handmatig invullen*). They open automatically, with the reason shown, for an EV, a plug-in hybrid, a failed lookup or a missing/invalid consumption or litres value. The open/closed state is only remembered as part of the opt-in profile.
+- Looked-up cars and deliberately entered manual car details are remembered automatically in this browser
+  on this device, including edits and the open/closed state of the car details. Untouched example values
+  are not stored as a real car. Existing saved profiles are retained.
+- **Auto vergeten / Forget car** clears the local plate, profile, manual car values and vehicle-related
+  preferences, including legacy preference copies. Location, language and non-car comparison preferences
+  stay unchanged. Stations remain visible in prices-only mode until you enter new car details or look up
+  another car. Reload does not restore the forgotten car or refill example values.
+- The small info control beside the forget button explains local storage. Storage failures are shown
+  visibly; calculations still work for the current visit. If deletion fails, clear this site's browser
+  data before reloading. Forgetting a car does not delete the server's separate 24 h RDW cache.
+- The detailed vehicle fields are collapsed behind a one-line summary (*Aanpassen* / *Handmatig invullen*). They open automatically, with the reason shown, for an EV, a plug-in hybrid, a failed lookup or a missing/invalid consumption or litres value.
 - Errors are explicit: invalid format, not found, RDW unavailable or rate limited. In each case manual entry keeps
   working.
 

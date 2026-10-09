@@ -93,3 +93,21 @@ test('explicit retry bypasses result deduplication, errors are visible and no au
   h.calls[2].resolve({ refreshed: true }); await c;
   assert.equal(h.results.at(-1).refreshed, true);
 });
+
+test('forgetting a car cancels debounced advice and replaces it with discovery', async () => {
+  const h = harness();
+  h.set({ start: 'A', fuel: 'e10', advice: true, consumption: 7, litres: 30 });
+  h.api.schedule();
+  assert.ok(h.timer());
+  h.api.invalidate();
+  assert.equal(h.timer(), null);
+  h.set({ start: 'A', fuel: 'e10', advice: false });
+  h.api.schedule(0);
+  assert.equal(h.timer().delay, 0);
+  const p = h.start();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].value.advice, false);
+  h.calls[0].resolve({ discovery: true });
+  await p;
+  assert.deepEqual(h.results, [{ discovery: true }]);
+});

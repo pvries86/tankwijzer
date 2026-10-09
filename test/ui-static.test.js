@@ -82,6 +82,21 @@ test('example vehicle values are visibly labelled, persisted as examples and rep
   assert.match(js, /if \(veh\.origins\[id\] === 'example'\) \{ \$\(id\)\.value = ''; veh\.origins\[id\] = null; \}/);
 });
 
+test('automatic car memory has a compact forget control and races cannot restore a forgotten car', () => {
+  assert.doesNotMatch(html + js, /remember-car|remember-wrap/);
+  assert.match(html, /id="vehicle-forget"[^>]*data-en="Forget car"/);
+  assert.match(html, /id="vehicle-storage-error"[^>]*role="alert"/);
+  assert.match(html, /src="vehicle-memory.js"/);
+  const clear = js.match(/function clearVehicle\(\) \{([\s\S]*?)\n  \}/)[1];
+  assert.match(clear, /vehicleLookupRevision\+\+/);
+  assert.match(clear, /updater\.invalidate\(\)/);
+  assert.match(clear, /veh\.origins = \{ fuel: null, consumption: null, tank: null, litres: null \}/);
+  assert.match(clear, /memory\.forget\(prefs\)/);
+  assert.match(clear, /updater\.schedule\(0\)/);
+  assert.match(js, /if \(vehicleForgotten\) return/);
+  assert.match(js, /vehicleForgotten \? VehicleMemory\.withoutVehicle\(p\) : p/);
+});
+
 test('info tips use a touch and keyboard operable popover with plain-text explanations', () => {
   assert.match(html, /src="info-tips.js"/);
   const tips = readFileSync(path.join(__dirname, '../public/info-tips.js'), 'utf8');

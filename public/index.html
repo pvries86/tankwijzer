@@ -145,12 +145,12 @@
             </div>
           </div>
           </div>
-          <div id="remember-wrap" class="check remember" hidden>
-            <input id="remember-car" type="checkbox">
-            <label for="remember-car" data-en="Remember my car on this device">Onthoud mijn auto op dit apparaat</label>
-            <span class="info-tip" tabindex="0" role="note" aria-label="Het kenteken blijft alleen in deze browser." data-en-aria-label="The plate stays in this browser only."
-                  title="Het kenteken blijft alleen in deze browser." data-en-title="The plate stays in this browser only.">ⓘ</span>
+          <div id="vehicle-memory-actions" class="vehicle-memory-actions" hidden>
+            <button type="button" id="vehicle-forget" class="linkish" data-en="Forget car">Auto vergeten</button>
+            <span class="info-tip" tabindex="0" role="note" aria-label="Je auto en aanpassingen worden automatisch onthouden in deze browser op dit apparaat. Auto vergeten wist deze lokale gegevens, niet de RDW-cache op de server." data-en-aria-label="Your car and edits are remembered automatically in this browser on this device. Forget car deletes this local data, not the server's RDW cache."
+                  title="Je auto en aanpassingen worden automatisch onthouden in deze browser op dit apparaat." data-en-title="Your car and edits are remembered automatically in this browser on this device.">ⓘ</span>
           </div>
+          <p id="vehicle-storage-error" class="error small" role="alert" hidden></p>
         </fieldset>
 
         <fieldset>
@@ -252,6 +252,7 @@
   <script src="disclosures.js"></script>
   <script src="vehicle-calc.js"></script>
   <script src="auto-compare.js"></script>
+  <script src="vehicle-memory.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -13,7 +13,7 @@
   }
 
   function initialExamples(prefs, hasVehicle) {
-    if (hasVehicle) return {};
+    if (hasVehicle || prefs.vehicleForgotten) return {};
     const values = {};
     if (!Object.hasOwn(prefs, 'consumptionOrigin')) values.consumption = 6.5;
     if (!Object.hasOwn(prefs, 'litresOrigin')) values.litres = 40;

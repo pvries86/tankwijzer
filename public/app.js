@@ -160,20 +160,34 @@
   // ------------------------------------------------------------ prefs
   const PREF_KEY = 'tankwijzer:prefs';
   const LEGACY_PREF_KEYS = ['fuel-detour:prefs', 'border-fuel:prefs'];
+  let vehicleForgotten = false;
+  let vehicleStorageFailure = null;
+  const memory = VehicleMemory.create(() => localStorage, (operation) => {
+    if (vehicleStorageFailure !== 'forget' || operation === 'forget') vehicleStorageFailure = operation;
+    renderStorageError();
+  });
+  function renderStorageError() {
+    const box = $('vehicle-storage-error');
+    box.hidden = !vehicleStorageFailure;
+    box.textContent = vehicleStorageFailure === 'forget'
+      ? t('Could not delete all saved car data in this browser. The car is cleared for now; clear this site browser data before reloading.',
+        'Niet alle opgeslagen autogegevens konden worden gewist. De auto is nu gewist; verwijder de browsergegevens van deze site voordat je herlaadt.')
+      : t('Car data could not be read or saved in this browser. You can keep using the app, but your edits may not survive a reload.',
+        'Autogegevens konden niet worden gelezen of opgeslagen in deze browser. Je kunt de app gebruiken, maar aanpassingen blijven mogelijk niet bewaard na herladen.');
+  }
   function loadPrefs() {
-    try {
-      const prefs = JSON.parse([PREF_KEY, ...LEGACY_PREF_KEYS].map((k) => localStorage.getItem(k)).find(Boolean)) || {};
-      if (!prefs.balancedDefaultApplied) {
-        if (!prefs.priority || prefs.priority === 'cheapest') {
-          prefs.priority = 'balanced';
-          prefs.per10min = 2;
-          prefs.minsaving = 2;
-        }
-        prefs.balancedDefaultApplied = true;
-        localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+    const prefs = [PREF_KEY, ...LEGACY_PREF_KEYS].map((k) => memory.read(k)).find(Boolean) || {};
+    vehicleForgotten = !!prefs.vehicleForgotten;
+    if (!prefs.balancedDefaultApplied) {
+      if (!prefs.priority || prefs.priority === 'cheapest') {
+        prefs.priority = 'balanced';
+        prefs.per10min = 2;
+        prefs.minsaving = 2;
       }
-      return prefs;
-    } catch { return {}; }
+      prefs.balancedDefaultApplied = true;
+      memory.write(PREF_KEY, prefs);
+    }
+    return prefs;
   }
   function savePrefs() {
     const p = {
@@ -182,7 +196,7 @@
       consumptionOrigin: veh.origins.consumption,
       balancedDefaultApplied: true,
     };
-    try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch { /* private mode */ }
+    memory.write(PREF_KEY, vehicleForgotten ? VehicleMemory.withoutVehicle(p) : p);
     saveRememberedCar();
   }
 
@@ -191,6 +205,7 @@
   const VC = window.VehicleCalc;
   const CAR_KEY = 'tankwijzer:vehicle';
   const veh = { vehicle: null, lab: null, origins: { fuel: null, consumption: null, tank: null, litres: null } };
+  function hasRememberedCar() { return !vehicleForgotten && VehicleMemory.hasCar(veh.vehicle, veh.origins); }
 
   function originText(kind) {
     const v = veh.vehicle;
@@ -285,6 +300,7 @@
         'Voorbeeldwaarden. Pas ze aan voor jouw auto of zoek je kenteken op.'))] : []));
     $('vehicle-summary-line').textContent = parts.join(' · ');
     $('vehicle-badges').replaceChildren(...vehicleBadges(v));
+    $('vehicle-memory-actions').hidden = !(hasRememberedCar() || $('kenteken').value.trim());
     const reason = vehicleAttentionReason();
     const hard = reason === 'consumption' || reason === 'litres';
     if (!reason) dismissedReason = null;
@@ -419,7 +435,6 @@
   function renderVehicleCard() {
     const card = $('vehicle-card');
     const v = veh.vehicle;
-    $('remember-wrap').hidden = !v;
     if (!v) { card.hidden = true; card.replaceChildren(); return; }
     const title = [v.merk, v.handelsbenaming].filter(Boolean).join(' ') || v.kenteken;
     const x = v.extras || {};
@@ -455,16 +470,15 @@
       el('p', { class: 'hint small source-line' },
         t('Source: RDW (CC0)', 'Bron: RDW (CC0)'), ' ',
         infoTip(t(`RDW Open Data (CC0), ${fetched}. Tank size is not registered by RDW and is estimated. Every value below stays editable.`,
-          `RDW Open Data (CC0), ${fetched}. Tankinhoud staat niet bij de RDW en is geschat. Alle waarden hieronder blijven aan te passen.`)), ' · ',
-        el('button', { type: 'button', class: 'linkish', id: 'vehicle-clear', text: t('Remove car', 'Auto wissen') })),
+          `RDW Open Data (CC0), ${fetched}. Tankinhoud staat niet bij de RDW en is geschat. Alle waarden hieronder blijven aan te passen.`))),
     );
     card.hidden = false;
     renderRangeInfo();
-    $('vehicle-clear').addEventListener('click', clearVehicle);
   }
 
   /** Fill fuel / consumption / tank / litres from an RDW vehicle. Only called right after a lookup or restore. */
   function prefillFromVehicle(v) {
+    vehicleForgotten = false;
     for (const id of ['consumption', 'tank', 'litres']) {
       if (veh.origins[id] === 'example') { $(id).value = ''; veh.origins[id] = null; }
     }
@@ -489,37 +503,44 @@
 
   function clearVehicle() {
     vehicleLookupRevision++;
+    updater.invalidate();
+    const prefs = loadPrefs();
+    vehicleForgotten = true;
     veh.vehicle = null;
     veh.lab = null;
-    veh.origins.fuel = null;
-    if (veh.origins.consumption !== 'manual') { veh.origins.consumption = null; $('consumption').value = ''; }
-    if (veh.origins.tank === 'weight' || veh.origins.tank === 'range') veh.origins.tank = null;
-    $('remember-car').checked = false;
-    try { localStorage.removeItem(CAR_KEY); } catch { /* private mode */ }
+    veh.origins = { fuel: null, consumption: null, tank: null, litres: null };
+    for (const id of ['consumption', 'tank', 'litres']) $(id).value = '';
+    setConsumptionUnit('l100', false);
+    $('level').value = 25;
+    $('uplift').checked = true;
+    $('uplift-pct').value = state.config.vehicle?.realismUpliftPct ?? 15;
+    $('kenteken-error').hidden = true;
+    $('kenteken-lookup').disabled = false;
+    $('kenteken-lookup').textContent = t('Look up', 'Opzoeken');
     $('kenteken').value = '';
     lookupFailed = false;
     dismissedReason = null;
     renderVehicleCard();
     renderOrigins();
-    savePrefs();
-    scheduleAutoCompare();
+    setVehicleExpanded(false, { persist: false });
+    vehicleStorageFailure = null;
+    memory.forget(prefs);
+    renderStorageError();
+    $('vehicle-toggle').focus();
+    updater.schedule(0);
   }
 
   function saveRememberedCar() {
-    try {
-      if ($('remember-car').checked && veh.vehicle) {
-        localStorage.setItem(CAR_KEY, JSON.stringify({ vehicle: veh.vehicle, origins: veh.origins, expanded: vehExpanded }));
-      } else localStorage.removeItem(CAR_KEY);
-    } catch { /* private mode */ }
+    if (hasRememberedCar()) memory.write(CAR_KEY, { vehicle: veh.vehicle, origins: veh.origins, expanded: vehExpanded });
   }
   function restoreRememberedCar() {
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(CAR_KEY)); } catch { saved = null; }
-    if (!saved || !saved.vehicle) return;
+    if (vehicleForgotten) return;
+    const saved = memory.read(CAR_KEY);
+    if (!saved) return;
+    if (!saved.vehicle) { vehExpanded = !!saved.expanded; return; }
     veh.vehicle = saved.vehicle;
     veh.lab = saved.vehicle.fuelSupport === 'ok' && saved.vehicle.consumption ? saved.vehicle.consumption.value || null : null;
     veh.origins = { ...veh.origins, ...saved.origins };
-    $('remember-car').checked = true;
     $('kenteken').value = VC.formatKenteken(saved.vehicle.kenteken || '');
     vehExpanded = !!saved.expanded;
     renderVehicleCard();
@@ -561,7 +582,7 @@
       prefillFromVehicle(body.vehicle);
       if (!vehicleAttentionReason()) setVehicleExpanded(false);
       savePrefs();
-      if (body.vehicle.fuelSupport === 'ok') scheduleAutoCompare(0);
+      scheduleAutoCompare(0);
     } catch (err) {
       if (revision !== vehicleLookupRevision) return;
       errBox.textContent = t(`RDW lookup failed: ${err.message}. Fill in your car yourself.`, `Opzoeken bij de RDW mislukt: ${err.message}. Vul je auto zelf in.`);
@@ -570,8 +591,10 @@
       dismissedReason = null;
       renderVehicleSummary();
     } finally {
-      btn.disabled = false;
-      btn.textContent = t('Look up', 'Opzoeken');
+      if (revision === vehicleLookupRevision) {
+        btn.disabled = false;
+        btn.textContent = t('Look up', 'Opzoeken');
+      }
     }
   }
 
@@ -580,6 +603,8 @@
     $('kenteken').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupKenteken(); } });
     $('kenteken').addEventListener('input', (e) => {
       vehicleLookupRevision++;
+      $('kenteken-lookup').disabled = false;
+      $('kenteken-lookup').textContent = t('Look up', 'Opzoeken');
       $('kenteken-error').hidden = true;
       const el = e.target;
       const pos = el.selectionStart;
@@ -591,6 +616,7 @@
         const p = atEnd ? formatted.length : Math.min(pos, formatted.length);
         el.setSelectionRange(p, p);
       }
+      renderVehicleSummary();
     });
     $('fuel').addEventListener('change', () => { if (veh.origins.fuel) veh.origins.fuel = 'manual'; renderOrigins(); });
     $('consumption').addEventListener('input', () => { veh.origins.consumption = $('consumption').value ? 'manual' : null; renderOrigins(); });
@@ -608,7 +634,7 @@
       renderOrigins();
     });
     $('litres').addEventListener('input', () => { veh.origins.litres = 'manual'; renderOrigins(); });
-    $('remember-car').addEventListener('change', saveRememberedCar);
+    $('vehicle-forget').addEventListener('click', clearVehicle);
     $('vehicle-toggle').addEventListener('click', toggleVehicleDetails);
   }
 
@@ -638,7 +664,7 @@
     veh.origins.tank = prefs.tankOrigin === 'example' ? 'example' : null;
     if (prefs.level != null && prefs.level !== '') $('level').value = prefs.level;
     if (prefs.litresOrigin === 'tank' && prefs.tank) veh.origins.litres = 'tank';
-    if (vcfg.kentekenLookup) restoreRememberedCar();
+    restoreRememberedCar();
     if (veh.vehicle) {
       if (!prefs.consumptionOrigin && veh.origins.consumption) {
         if (veh.origins.consumption === 'manual') setConsumptionL100(prefs.consumption || '');
@@ -649,7 +675,7 @@
         deriveLitres();
       }
     }
-    if (prefs.tank && !veh.origins.tank) veh.origins.tank = veh.vehicle && veh.vehicle.tank && Number(prefs.tank) === veh.vehicle.tank.value ? veh.vehicle.tank.source : 'manual';
+    if (prefs.tank && !veh.origins.tank) veh.origins.tank = prefs.tankOrigin || (veh.vehicle && veh.vehicle.tank && Number(prefs.tank) === veh.vehicle.tank.value ? veh.vehicle.tank.source : 'manual');
     const examples = AutoCompare.initialExamples(prefs, !!veh.vehicle);
     if (examples.consumption != null) { setConsumptionL100(examples.consumption); veh.origins.consumption = 'example'; }
     if (examples.litres != null) { $('litres').value = examples.litres; veh.origins.litres = 'example'; }
@@ -661,6 +687,7 @@
     setVehicleExpanded(vehExpanded, { persist: false });
     renderOrigins();
     wireVehicle();
+    saveRememberedCar();
     if (cfg.build) $('app-build').textContent = cfg.build;
     initMap();
   }
@@ -677,6 +704,7 @@
     lang = next;
     try { localStorage.setItem(LANG_KEY, lang); } catch { /* private mode */ }
     applyStaticTexts();
+    renderStorageError();
     if (!state.config) return;
     renderFuelOptions();
     updateConsumptionHint();
@@ -1473,8 +1501,15 @@
   debounceGeocode('start-q', 'start-suggestions', 'start');
   debounceGeocode('dest-q', 'dest-suggestions', 'destination');
   // Settings changes refresh the results automatically (address fields update via their suggestions / pins).
-  const isAddress = (t) => t && (t.id === 'start-q' || t.id === 'dest-q' || t.id === 'kenteken' || t.id === 'remember-car');
-  $('form').addEventListener('input', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(); });
-  $('form').addEventListener('change', (e) => { if (!isAddress(e.target)) scheduleAutoCompare(); });
+  const isAddress = (t) => t && (t.id === 'start-q' || t.id === 'dest-q' || t.id === 'kenteken');
+  function onSettingsChange(e) {
+    if (isAddress(e.target)) return;
+    if (['fuel', 'consumption', 'tank', 'litres', 'level', 'uplift', 'uplift-pct'].includes(e.target.id)
+      && VehicleMemory.hasCar(veh.vehicle, veh.origins)) vehicleForgotten = false;
+    scheduleAutoCompare();
+    renderVehicleSummary();
+  }
+  $('form').addEventListener('input', onSettingsChange);
+  $('form').addEventListener('change', onSettingsChange);
   init().catch((err) => showError(t(`Could not load app configuration: ${err.message}`, `Kon de app-configuratie niet laden: ${err.message}`)));
 })();
