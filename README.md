@@ -196,7 +196,7 @@ Privacy and robustness:
 - Looked-up cars and deliberately entered manual car details are remembered automatically in this browser
   on this device, including edits and the open/closed state of the car details. Untouched example values
   are not stored as a real car. Existing saved profiles are retained.
-- **Auto vergeten / Forget car** clears the local plate, profile, manual car values and vehicle-related
+- **Auto vergeten / Forget car**, inside the expanded car details (*Aanpassen / Edit*), clears the local plate, profile, manual car values and vehicle-related
   preferences, including legacy preference copies. Location, language and non-car comparison preferences
   stay unchanged. Stations remain visible in prices-only mode until you enter new car details or look up
   another car. Reload does not restore the forgotten car or refill example values.

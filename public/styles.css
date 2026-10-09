@@ -140,6 +140,9 @@ label.check input[type="checkbox"] { margin-top: .15rem; }
 input[type="range"] { width: 100%; min-width: 0; box-sizing: border-box; accent-color: var(--accent); min-height: 42px; padding: 0; border: 0; background: transparent; }
 .vehicle-memory-actions { display: flex; align-items: center; gap: .3rem; margin-top: .4rem; }
 .vehicle-memory-actions[hidden] { display: none; }
+#vehicle-forget { color: var(--muted); font-size: .85rem; text-decoration: none; min-height: 32px; }
+#vehicle-forget:hover { color: var(--ink); text-decoration: underline; }
+#vehicle-forget:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 .vehicle-summary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; margin: .6rem 0 .2rem; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 10px; background: #fafbf9; }
 .vehicle-summary-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 12rem; }
 .vehicle-summary-text strong { overflow-wrap: anywhere; }

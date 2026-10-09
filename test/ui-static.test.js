@@ -85,6 +85,10 @@ test('example vehicle values are visibly labelled, persisted as examples and rep
 test('automatic car memory has a compact forget control and races cannot restore a forgotten car', () => {
   assert.doesNotMatch(html + js, /remember-car|remember-wrap/);
   assert.match(html, /id="vehicle-forget"[^>]*data-en="Forget car"/);
+  assert.ok(html.indexOf('id="vehicle-memory-actions"') > html.indexOf('id="vehicle-details"'));
+  assert.match(html, /id="vehicle-memory-actions"[\s\S]*?<\/div>\s*<\/div>\s*<p id="vehicle-storage-error"/);
+  const css = readFileSync(path.join(__dirname, '../public/styles.css'), 'utf8');
+  assert.match(css, /#vehicle-forget \{[^}]*color: var\(--muted\)[^}]*text-decoration: none/);
   assert.match(html, /id="vehicle-storage-error"[^>]*role="alert"/);
   assert.match(html, /src="vehicle-memory.js"/);
   const clear = js.match(/function clearVehicle\(\) \{([\s\S]*?)\n  \}/)[1];
